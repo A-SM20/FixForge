@@ -41,8 +41,18 @@ export const RunDetailPage: React.FC<RunDetailPageProps> = ({ runId, onBack }) =
 
   // WebSocket for instantaneous live state updates
   useEffect(() => {
-    const protocol = window.location.protocol === 'https:' ? 'wss:' : 'ws:';
-    const wsUrl = `${protocol}//${window.location.host}/ws/runs/${runId}`;
+    let wsUrl: string;
+    const customApiUrl = import.meta.env.VITE_API_URL;
+
+    if (customApiUrl) {
+      const url = new URL(customApiUrl);
+      const wsProtocol = url.protocol === 'https:' ? 'wss:' : 'ws:';
+      wsUrl = `${wsProtocol}//${url.host}/ws/runs/${runId}`;
+    } else {
+      const protocol = window.location.protocol === 'https:' ? 'wss:' : 'ws:';
+      wsUrl = `${protocol}//${window.location.host}/ws/runs/${runId}`;
+    }
+
     let ws: WebSocket | null = null;
 
     try {

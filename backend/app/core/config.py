@@ -5,6 +5,7 @@ Why pydantic-settings: type-safe, validates on startup (fail fast),
 and provides a single source of truth for all configuration.
 """
 
+from pydantic import field_validator
 from pydantic_settings import BaseSettings, SettingsConfigDict
 
 
@@ -19,6 +20,17 @@ class Settings(BaseSettings):
 
     # Database
     database_url: str = "postgresql+asyncpg://postgres:postgres@localhost:5432/fixforge"
+
+    @field_validator("database_url", mode="before")
+    @classmethod
+    def assemble_async_db_url(cls, v: str) -> str:
+        """Convert standard postgres:// or postgresql:// to postgresql+asyncpg://."""
+        if isinstance(v, str):
+            if v.startswith("postgres://"):
+                return v.replace("postgres://", "postgresql+asyncpg://", 1)
+            elif v.startswith("postgresql://") and not v.startswith("postgresql+asyncpg://"):
+                return v.replace("postgresql://", "postgresql+asyncpg://", 1)
+        return v
 
     # LLM
     openai_api_key: str = "sk-placeholder"
@@ -37,7 +49,7 @@ class Settings(BaseSettings):
 
     # Server
     debug: bool = False
-    cors_origins: list[str] = ["http://localhost:5173"]  # Vite dev server
+    cors_origins: list[str] = ["*"]  # Allow all origins for cloud deployment
 
 
 def get_settings() -> Settings:

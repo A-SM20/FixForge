@@ -72,7 +72,8 @@ export interface EvalReport {
   results: EvalResultItem[];
 }
 
-const API_BASE = '/api';
+const API_ORIGIN = (import.meta.env.VITE_API_URL || '').replace(/\/$/, '');
+const API_BASE = API_ORIGIN ? `${API_ORIGIN}/api` : '/api';
 
 export async function fetchRuns(page = 1, pageSize = 20, status?: string): Promise<RunListResponse> {
   const params = new URLSearchParams({ page: String(page), page_size: String(pageSize) });

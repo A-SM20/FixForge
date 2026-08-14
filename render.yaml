@@ -1,0 +1,32 @@
+# Render Blueprint Deployment Configuration for FixForge
+# https://render.com/docs/blueprint-spec
+
+databases:
+  - name: fixforge-db
+    databaseName: fixforge
+    user: postgres
+    plan: free
+    region: oregon
+
+services:
+  - type: web
+    name: fixforge-api
+    runtime: python
+    region: oregon
+    plan: free
+    rootDir: backend
+    buildCommand: pip install -r requirements.txt && alembic upgrade head
+    startCommand: uvicorn app.main:app --host 0.0.0.0 --port $PORT
+    envVars:
+      - key: DATABASE_URL
+        fromDatabase:
+          name: fixforge-db
+          property: connectionString
+      - key: OPENAI_API_KEY
+        sync: false
+      - key: GITHUB_TOKEN
+        sync: false
+      - key: OPENAI_MODEL
+        value: gpt-4o
+      - key: MAX_ITERATIONS
+        value: "5"
