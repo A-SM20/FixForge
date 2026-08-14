@@ -11,15 +11,20 @@ from alembic import context
 from sqlalchemy import pool
 from sqlalchemy.ext.asyncio import async_engine_from_config
 
+from app.core.config import get_settings
 from app.db.base import Base
 
 # Import all models so Alembic's autogenerate can detect them
-from app.models.run import Run  # noqa: F401
-from app.models.patch import Patch  # noqa: F401
 from app.models.log_entry import LogEntry  # noqa: F401
+from app.models.patch import Patch  # noqa: F401
+from app.models.run import Run  # noqa: F401
 
 # Alembic Config object
 config = context.config
+
+# Dynamically set database URL from application settings (DATABASE_URL env var)
+settings = get_settings()
+config.set_main_option("sqlalchemy.url", settings.database_url)
 
 # Set up logging from alembic.ini
 if config.config_file_name is not None:

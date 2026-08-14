@@ -24,9 +24,22 @@ async def lifespan(app: FastAPI):
     # Startup
     settings = get_settings()
     app.state.settings = settings
-    yield
-    # Shutdown
+
+    import app.models.log_entry  # noqa: F401
+    import app.models.patch  # noqa: F401
+    import app.models.run  # noqa: F401
+    from app.db.base import Base
     from app.db.session import engine
+
+    try:
+        async with engine.begin() as conn:
+            await conn.run_sync(Base.metadata.create_all)
+    except Exception:
+        pass
+
+    yield
+
+    # Shutdown
     await engine.dispose()
 
 
