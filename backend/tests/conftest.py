@@ -58,7 +58,11 @@ async def test_session(test_engine) -> AsyncGenerator[AsyncSession, None]:
 
 @pytest_asyncio.fixture(scope="function")
 async def client(test_engine) -> AsyncGenerator[AsyncClient, None]:
-    """Provide an async test client with overridden DB dependency."""
+    """Provide an async test client with overridden DB dependency.
+
+    Mocks execute_run so background tasks don't try to connect
+    to Docker or the real database during tests.
+    """
     session_factory = async_sessionmaker(
         test_engine, class_=AsyncSession, expire_on_commit=False
     )
@@ -75,6 +79,20 @@ async def client(test_engine) -> AsyncGenerator[AsyncClient, None]:
     app = create_app()
     app.dependency_overrides[get_db] = override_get_db
 
+    # Mock execute_run so the background task doesn't actually run
+    import app.api.routes_runs as routes_module
+
+    original_execute_run = routes_module.execute_run
+
+    async def mock_execute_run(*args, **kwargs):
+        pass  # No-op in tests
+
+    routes_module.execute_run = mock_execute_run
+
     transport = ASGITransport(app=app)
     async with AsyncClient(transport=transport, base_url="http://test") as ac:
         yield ac
+
+    # Restore original
+    routes_module.execute_run = original_execute_run
+
