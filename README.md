@@ -155,6 +155,4 @@ npm run build
    - *Concurrency & Observability*: The agent loop is I/O intensive (LLM calls, Docker exec, GitHub API). Async I/O ensures the API server never blocks, while relational storage enables real-time joins between runs and log entries.
 
 ---
-
-## 📄 License
-MIT &copy; Ananth
+@ananth
