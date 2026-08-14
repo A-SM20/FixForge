@@ -32,9 +32,10 @@ class Settings(BaseSettings):
                 return v.replace("postgresql://", "postgresql+asyncpg://", 1)
         return v
 
-    # LLM
+    # LLM (Supports OpenAI, Google Gemini via OpenAI compatibility, Groq, Ollama, etc.)
     openai_api_key: str = "sk-placeholder"
     openai_model: str = "gpt-4o"
+    openai_base_url: str | None = None
 
     # GitHub
     github_token: str = "ghp-placeholder"

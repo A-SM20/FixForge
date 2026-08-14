@@ -30,12 +30,15 @@ if TYPE_CHECKING:
 
 logger = logging.getLogger(__name__)
 
-# Pricing per 1M tokens (GPT-4o as default, June 2025)
+# Pricing per 1M tokens (GPT-4o, GPT-4.1, and Google Gemini free tier)
 MODEL_PRICING: dict[str, dict[str, float]] = {
     "gpt-4o": {"input": 2.50, "output": 10.00},
     "gpt-4o-mini": {"input": 0.15, "output": 0.60},
     "gpt-4.1": {"input": 2.00, "output": 8.00},
     "gpt-4.1-mini": {"input": 0.40, "output": 1.60},
+    "gemini-2.5-flash": {"input": 0.00, "output": 0.00},
+    "gemini-2.0-flash": {"input": 0.00, "output": 0.00},
+    "gemini-1.5-flash": {"input": 0.00, "output": 0.00},
 }
 
 
@@ -45,16 +48,23 @@ def calculate_cost(
     completion_tokens: int,
 ) -> float:
     """Calculate the cost of an LLM call in USD."""
-    pricing = MODEL_PRICING.get(model, MODEL_PRICING["gpt-4o"])
+    pricing = MODEL_PRICING.get(model, {"input": 0.0, "output": 0.0})
     input_cost = (prompt_tokens / 1_000_000) * pricing["input"]
     output_cost = (completion_tokens / 1_000_000) * pricing["output"]
     return round(input_cost + output_cost, 6)
 
 
 async def create_llm_client() -> AsyncOpenAI:
-    """Create an async OpenAI client."""
+    """Create an async OpenAI-compatible client.
+
+    Supports OpenAI, Google Gemini (via OpenAI compatibility endpoint),
+    Groq, Ollama, and other providers.
+    """
     settings = get_settings()
-    return AsyncOpenAI(api_key=settings.openai_api_key)
+    kwargs: dict = {"api_key": settings.openai_api_key}
+    if settings.openai_base_url:
+        kwargs["base_url"] = settings.openai_base_url
+    return AsyncOpenAI(**kwargs)
 
 
 async def llm_call_with_tools(
