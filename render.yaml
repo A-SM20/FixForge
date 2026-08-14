@@ -4,15 +4,13 @@
 databases:
   - name: fixforge-db
     databaseName: fixforge
-    user: postgres
+    user: fixforge_user
     plan: free
-    region: oregon
 
 services:
   - type: web
     name: fixforge-api
     runtime: python
-    region: oregon
     plan: free
     rootDir: backend
     buildCommand: pip install -r requirements.txt && alembic upgrade head
