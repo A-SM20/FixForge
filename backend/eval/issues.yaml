@@ -1,0 +1,157 @@
+# FixForge Eval Harness — Curated GitHub Issues
+#
+# Each task is a real GitHub issue from a well-known Python repo
+# with a known fix, a specific commit SHA (before the fix), and
+# a test command that should pass after the fix is applied.
+#
+# Design decision: ~15-20 tractable issues (single-file or small-scope)
+# rather than the full SWE-bench (300+ tasks) — realistic but not overwhelming.
+
+tasks:
+  - id: flask-url-default-value
+    repo: pallets/flask
+    commit_sha: "2.3.3"
+    issue_text: |
+      When using `url_defaults` in a blueprint, the values are not correctly
+      propagated to nested blueprints, causing a `BuildError` when calling
+      `url_for` for routes in the nested blueprint.
+    test_command: "pytest tests/test_blueprints.py -x -q"
+    difficulty: easy
+
+  - id: requests-timeout-none
+    repo: psf/requests
+    commit_sha: "v2.31.0"
+    issue_text: |
+      Setting `timeout=None` should disable the timeout entirely, but
+      it currently raises a TypeError in the adapter's send method when
+      used with urllib3 >= 2.0.
+    test_command: "pytest tests/test_requests.py -x -q -k timeout"
+    difficulty: easy
+
+  - id: httpx-redirect-headers
+    repo: encode/httpx
+    commit_sha: "0.27.0"
+    issue_text: |
+      When following a redirect from a POST to a GET request, the
+      Content-Length and Content-Type headers should be stripped but
+      they are being preserved, causing 400 errors on some servers.
+    test_command: "pytest tests/test_client.py -x -q -k redirect"
+    difficulty: medium
+
+  - id: pydantic-model-copy
+    repo: pydantic/pydantic
+    commit_sha: "v2.6.0"
+    issue_text: |
+      `model.model_copy(update={...})` doesn't run validators on the
+      updated fields, allowing invalid data to pass through.
+    test_command: "pytest tests/test_types.py -x -q -k model_copy"
+    difficulty: medium
+
+  - id: fastapi-query-default
+    repo: fastapi/fastapi
+    commit_sha: "0.110.0"
+    issue_text: |
+      When using `Query(default=None)` with a type annotation of `str`,
+      the parameter is still marked as required in the OpenAPI schema
+      instead of optional.
+    test_command: "pytest tests/test_tutorial/test_query_params -x -q"
+    difficulty: easy
+
+  - id: click-echo-unicode
+    repo: pallets/click
+    commit_sha: "8.1.7"
+    issue_text: |
+      `click.echo()` raises a UnicodeEncodeError when writing to a pipe
+      with ASCII encoding on Python 3.12, despite the documentation
+      saying it handles encoding gracefully.
+    test_command: "pytest tests/test_basic.py -x -q -k echo"
+    difficulty: easy
+
+  - id: sqlalchemy-async-session-merge
+    repo: sqlalchemy/sqlalchemy
+    commit_sha: "2.0.28"
+    issue_text: |
+      `AsyncSession.merge()` raises a `MissingGreenlet` error when the
+      object being merged has lazy-loaded relationships, even when those
+      relationships are not accessed.
+    test_command: "pytest test/ext/asyncio/test_session.py -x -q -k merge"
+    difficulty: hard
+
+  - id: rich-table-overflow
+    repo: Textualize/rich
+    commit_sha: "13.7.0"
+    issue_text: |
+      When a Rich table column is set to `overflow="fold"`, cells with
+      very long words (no spaces) are not properly wrapped, causing the
+      table to exceed the terminal width.
+    test_command: "pytest tests/test_table.py -x -q -k overflow"
+    difficulty: medium
+
+  - id: typer-optional-argument
+    repo: fastapi/typer
+    commit_sha: "0.12.0"
+    issue_text: |
+      Typer marks arguments with `Optional[str] = None` as required
+      instead of optional, contradicting the type hint semantics.
+    test_command: "pytest tests/test_tutorial -x -q"
+    difficulty: easy
+
+  - id: jinja2-sandbox-escape
+    repo: pallets/jinja
+    commit_sha: "3.1.3"
+    issue_text: |
+      The SandboxedEnvironment allows access to `__subclasses__()` via
+      attribute chaining on built-in types, which could be used to
+      escape the sandbox and execute arbitrary code.
+    test_command: "pytest tests/test_security.py -x -q"
+    difficulty: hard
+
+  - id: werkzeug-range-header
+    repo: pallets/werkzeug
+    commit_sha: "3.0.1"
+    issue_text: |
+      The `Range` header parser accepts malformed range values like
+      "bytes=abc-def" without raising an error, leading to unexpected
+      behavior in file serving.
+    test_command: "pytest tests/test_http.py -x -q -k range"
+    difficulty: easy
+
+  - id: pytest-fixture-scope
+    repo: pytest-dev/pytest
+    commit_sha: "8.1.0"
+    issue_text: |
+      Session-scoped fixtures that depend on module-scoped fixtures
+      don't raise a ScopeMismatchError as expected, leading to subtle
+      test isolation bugs.
+    test_command: "pytest testing/test_fixtures.py -x -q -k scope"
+    difficulty: medium
+
+  - id: black-magic-trailing-comma
+    repo: psf/black
+    commit_sha: "24.2.0"
+    issue_text: |
+      Black removes the trailing comma in a single-element tuple
+      assignment when magic trailing comma is enabled, changing the
+      semantics from tuple to parenthesized expression.
+    test_command: "pytest tests/test_format.py -x -q -k trailing_comma"
+    difficulty: medium
+
+  - id: aiohttp-form-data
+    repo: aio-libs/aiohttp
+    commit_sha: "3.9.3"
+    issue_text: |
+      `FormData` with a file field that has a filename containing
+      non-ASCII characters raises a UnicodeEncodeError when sending
+      the multipart request.
+    test_command: "pytest tests/test_client_functional.py -x -q -k form"
+    difficulty: medium
+
+  - id: marshmallow-nested-many
+    repo: marshmallow-code/marshmallow
+    commit_sha: "3.21.0"
+    issue_text: |
+      Using `Nested(Schema, many=True)` with `load_default=[]` doesn't
+      apply the default when the field is missing from input — it raises
+      a validation error instead.
+    test_command: "pytest tests/test_schema.py -x -q -k nested"
+    difficulty: easy
