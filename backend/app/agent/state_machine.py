@@ -13,6 +13,7 @@ States: READ_ISSUE -> LOCATE_CODE -> GENERATE_PATCH -> RUN_TESTS
 
 from __future__ import annotations
 
+import asyncio
 import logging
 import uuid
 from dataclasses import dataclass, field
@@ -166,6 +167,9 @@ async def run_agent(
                     "iteration": context.iteration,
                 },
             )
+
+            # Small pacing delay for smooth live frontend stepper visualization
+            await asyncio.sleep(1.0)
 
             # Execute the state handler — returns (next_state, updated_context)
             next_state, context = await handler(context, db)
