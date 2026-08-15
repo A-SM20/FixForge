@@ -74,7 +74,10 @@ async def fetch_default_branch(owner: str, repo: str) -> str:
                 logger.info("Resolved default branch for %s/%s: %s", owner, repo, branch)
                 return branch
     except Exception as e:
-        logger.warning("Could not fetch default branch for %s/%s (%s), falling back to 'main'", owner, repo, e)
+        logger.warning(
+            "Could not fetch default branch for %s/%s (%s), falling back to 'main'",
+            owner, repo, e,
+        )
     return "main"
 
 
