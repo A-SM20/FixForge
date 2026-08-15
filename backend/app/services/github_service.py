@@ -16,11 +16,31 @@ from app.core.config import get_settings
 
 logger = logging.getLogger(__name__)
 
+# Placeholder tokens that should NOT be sent as Authorization headers
+_PLACEHOLDER_TOKENS = {"ghp-placeholder", "ghp_your-token-here", "sk-placeholder", ""}
+
+
+def _is_valid_token(token: str | None) -> bool:
+    """Check whether a token is a real credential (not a placeholder)."""
+    if not token:
+        return False
+    return token.strip() not in _PLACEHOLDER_TOKENS
+
+
+def _build_github_headers(*, accept: str = "application/vnd.github.v3+json") -> dict[str, str]:
+    """Build GitHub API request headers, attaching auth only if the token is real."""
+    settings = get_settings()
+    headers = {"User-Agent": "FixForge-Agent", "Accept": accept}
+    if _is_valid_token(settings.github_token):
+        headers["Authorization"] = f"token {settings.github_token}"
+    return headers
+
 
 def get_github_client() -> Github:
     """Create a GitHub client with the configured token."""
     settings = get_settings()
-    return Github(settings.github_token)
+    token = settings.github_token if _is_valid_token(settings.github_token) else None
+    return Github(token)
 
 
 def parse_github_url(url: str) -> tuple[str, str]:
@@ -35,14 +55,34 @@ def parse_issue_url(url: str) -> tuple[str, str, int]:
     return parts[-4], parts[-3], int(parts[-1])
 
 
+async def fetch_default_branch(owner: str, repo: str) -> str:
+    """Fetch the default branch name for a repository.
+
+    Queries `GET /repos/{owner}/{repo}` and returns the `default_branch`
+    field (e.g. 'main', 'master', 'develop').  Falls back to 'main' if
+    the API call fails.
+    """
+    headers = _build_github_headers()
+    try:
+        async with httpx.AsyncClient(timeout=15.0) as client:
+            resp = await client.get(
+                f"https://api.github.com/repos/{owner}/{repo}",
+                headers=headers,
+            )
+            if resp.status_code == 200:
+                branch = resp.json().get("default_branch", "main")
+                logger.info("Resolved default branch for %s/%s: %s", owner, repo, branch)
+                return branch
+    except Exception as e:
+        logger.warning("Could not fetch default branch for %s/%s (%s), falling back to 'main'", owner, repo, e)
+    return "main"
+
+
 async def fetch_issue(issue_url: str) -> dict:
     """Fetch issue details from GitHub (supports public & authenticated)."""
     owner, repo, number = parse_issue_url(issue_url)
-    settings = get_settings()
 
-    headers = {"User-Agent": "FixForge-Agent", "Accept": "application/vnd.github.v3+json"}
-    if settings.github_token:
-        headers["Authorization"] = f"token {settings.github_token}"
+    headers = _build_github_headers()
 
     try:
         async with httpx.AsyncClient(timeout=15.0) as client:
@@ -83,24 +123,28 @@ async def fetch_issue(issue_url: str) -> dict:
 
 
 async def fetch_repo_tree(
-    owner: str, repo: str, extensions: tuple[str, ...] = (".py",)
+    owner: str,
+    repo: str,
+    extensions: tuple[str, ...] = (
+        ".py", ".ts", ".js", ".jsx", ".tsx",
+        ".go", ".rs", ".java", ".rb", ".c", ".cpp", ".h",
+        ".cs", ".swift", ".kt", ".scala", ".php", ".sh",
+    ),
+    branch: str | None = None,
 ) -> list[str]:
     """Fetch the full file tree of a repo from GitHub API.
 
     Returns a list of file paths (e.g. 'src/ambforecast/forecast.py')
     filtered to the given extensions.
     """
-    settings = get_settings()
-    headers = {
-        "User-Agent": "FixForge-Agent",
-        "Accept": "application/vnd.github.v3+json",
-    }
-    if settings.github_token:
-        headers["Authorization"] = f"token {settings.github_token}"
+    if branch is None:
+        branch = await fetch_default_branch(owner, repo)
+
+    headers = _build_github_headers()
 
     url = (
         f"https://api.github.com/repos/{owner}/{repo}"
-        f"/git/trees/main?recursive=1"
+        f"/git/trees/{branch}?recursive=1"
     )
     try:
         async with httpx.AsyncClient(timeout=15.0) as client:
@@ -119,16 +163,13 @@ async def fetch_repo_tree(
 
 
 async def fetch_file_content(
-    owner: str, repo: str, path: str, ref: str = "main"
+    owner: str, repo: str, path: str, ref: str | None = None
 ) -> str:
     """Fetch raw file content from GitHub."""
-    settings = get_settings()
-    headers = {
-        "User-Agent": "FixForge-Agent",
-        "Accept": "application/vnd.github.v3.raw",
-    }
-    if settings.github_token:
-        headers["Authorization"] = f"token {settings.github_token}"
+    if ref is None:
+        ref = await fetch_default_branch(owner, repo)
+
+    headers = _build_github_headers(accept="application/vnd.github.v3.raw")
 
     url = (
         f"https://api.github.com/repos/{owner}/{repo}"
@@ -149,10 +190,14 @@ async def create_pull_request(
     branch_name: str,
     title: str,
     body: str,
-    base: str = "main",
+    base: str | None = None,
 ) -> str:
     """Create a pull request on GitHub."""
     owner, repo = parse_github_url(repo_url)
+
+    if base is None:
+        base = await fetch_default_branch(owner, repo)
+
     client = get_github_client()
 
     try:

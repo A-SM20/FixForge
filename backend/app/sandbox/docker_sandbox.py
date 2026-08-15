@@ -61,7 +61,9 @@ class DockerSandbox:
     async def start(self) -> None:
         """Clone the repo and start sandbox environment."""
         self._temp_dir = tempfile.mkdtemp(prefix="fixforge-")
-        self.work_dir = self._temp_dir
+        # Clone into a child directory so git doesn't fail on an existing dir
+        clone_dest = os.path.join(self._temp_dir, "repo")
+        self.work_dir = clone_dest
 
         logger.info(
             "Cloning repo",
@@ -75,12 +77,13 @@ class DockerSandbox:
         # Clone in a thread to avoid blocking the event loop
         try:
             await asyncio.to_thread(
-                self._clone_repo, self.repo_url, self.work_dir, self.commit_sha
+                self._clone_repo, self.repo_url, clone_dest, self.commit_sha
             )
         except Exception as e:
             logger.warning("Git clone failed (%s) — initializing empty repo", e)
             # Create a mock minimal git repo in work_dir so agent tools don't crash
-            await asyncio.to_thread(self._init_fallback_repo, self.work_dir)
+            os.makedirs(clone_dest, exist_ok=True)
+            await asyncio.to_thread(self._init_fallback_repo, clone_dest)
 
         if self.use_docker and self.client:
             try:

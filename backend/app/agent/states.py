@@ -75,7 +75,8 @@ def _score_file_relevance(
     """Score file relevance with strong title-matching weights."""
     score = 0
     lower_path = file_path.lower()
-    base_name = os.path.basename(lower_path).replace(".py", "")
+    # Strip common source extensions for basename matching
+    base_name = os.path.splitext(os.path.basename(lower_path))[0]
     lower_content = content.lower()
 
     for t_term in title_terms:
@@ -90,11 +91,6 @@ def _score_file_relevance(
         occurrences = lower_content.count(term)
         score += min(occurrences * 3, 40)
 
-    if "forecast.py" in lower_path:
-        score += 80
-    if "prophet.py" in lower_path and "prophet" in " ".join(query_terms):
-        score += 150
-
     return score
 
 
@@ -106,11 +102,17 @@ async def _gather_files_local(
     ignored = {
         ".git", ".venv", "__pycache__",
         "node_modules", ".pytest_cache", ".tox",
+        "dist", "build", ".mypy_cache", ".ruff_cache",
     }
+    source_extensions = (
+        ".py", ".ts", ".js", ".jsx", ".tsx",
+        ".go", ".rs", ".java", ".rb", ".c", ".cpp", ".h",
+        ".cs", ".swift", ".kt", ".scala", ".php", ".sh",
+    )
     for root, dirs, files in os.walk(work_dir):
         dirs[:] = [d for d in dirs if d not in ignored]
         for f in files:
-            if f.endswith((".py", ".ts", ".js", ".jsx", ".tsx")):
+            if f.endswith(source_extensions):
                 abs_f = os.path.join(root, f)
                 rel_path = os.path.relpath(
                     abs_f, work_dir
@@ -323,169 +325,28 @@ async def generate_patch(
         except Exception as e:
             logger.warning("LLM patch synthesis failed (%s)", e)
 
-    # Fallback: ground-truth multi-file diff
+    # Fallback: generic minimal diff using actual discovered files
     if not synthesized_diff:
-        primary = f"src/{repo}/forecast.py"
-        secondary = f"src/{repo}/prophet.py"
-
-        synthesized_diff = (
-            f"--- a/{primary}\n"
-            f"+++ b/{primary}\n"
-            "@@ -11,7 +11,9 @@\n"
-            " )\n"
-            " from joblib import Parallel, delayed, effective_n_jobs\n"
-            " from tqdm.auto import tqdm\n"
-            "+import hashlib\n"
-            " \n"
-            "+from .prophet import prophet\n"
-            " from .splits import rolling_forecast_origin\n"
-            " \n"
-            " \n"
-            "@@ -37,6 +39,25 @@ def unique_pairs(data):\n"
-            "     )\n"
-            " \n"
-            " \n"
-            "+def make_seed(*parts):\n"
-            '+    """Create a reproducible integer seed from '
-            'one or more identifiers.\n'
-            "+\n"
-            "+    Parameters\n"
-            "+    ----------\n"
-            "+    *parts\n"
-            "+        Values that uniquely identify a model fit, "
-            "such as `metric`, `area`,\n"
-            "+        and, for cross-validation, `fold`.\n"
-            "+\n"
-            "+    Returns\n"
-            "+    -------\n"
-            "+    int\n"
-            "+        A deterministic integer seed suitable for "
-            "Prophet.\n"
-            "+\n"
-            '+    """\n'
-            "+    key = '|'.join(str(p) for p in parts)\n"
-            "+    return int(hashlib.md5("
-            "key.encode()).hexdigest(), 16) % (2**32)\n"
-            "+\n"
-            "+\n"
-            " def run_single_forecast(\n"
-            "     forecast_function,\n"
-            "     train,\n"
-            "@@ -45,6 +66,7 @@ def run_single_forecast(\n"
-            "     area,\n"
-            "     test=None,\n"
-            "     horizon=None,\n"
-            "+    seed_parts=None,\n"
-            " ):\n"
-            '@@ -90,9 +115,18 @@ def run_single_forecast'
-            "(...):\n"
-            "     else:\n"
-            "         test_subset = None\n"
-            " \n"
-            "-    forecast = forecast_function(\n"
-            "-        train=train_subset, params=params, "
-            "test=test_subset, horizon=horizon\n"
-            "-    )\n"
-            "+    forecast_kwargs = {\n"
-            '+        "train": train_subset,\n'
-            '+        "params": params,\n'
-            '+        "test": test_subset,\n'
-            '+        "horizon": horizon,\n'
-            "+    }\n"
-            "+    # Pass seed only for Prophet\n"
-            "+    if forecast_function is prophet:\n"
-            "+        seed_parts = seed_parts or (metric, area)\n"
-            '+        forecast_kwargs["seed"] = '
-            "make_seed(*seed_parts)\n"
-            "+\n"
-            "+    forecast = forecast_function("
-            "**forecast_kwargs)\n"
-            " \n"
-            "     forecast.insert(1, \"metric\", metric)\n"
-            "     forecast.insert(2, \"area\", area)\n"
-            "@@ -134,6 +168,7 @@ def run_forecasts(...):\n"
-            " \n"
-            "     pairs = unique_pairs(train)\n"
-            "+\n"
-            "     if cores == 1:\n"
-            "         forecasts = [\n"
-            "             run_single_forecast(\n"
-            "@@ -144,6 +179,7 @@ def run_forecasts(...):\n"
-            "                 area=area,\n"
-            "                 test=test,\n"
-            "                 horizon=horizon,\n"
-            "+                seed_parts=(metric, area)"
-            "  # Only used by Prophet\n"
-            "             )\n"
-            "             for (metric, area) in pairs\n"
-            "         ]\n"
-            "@@ -157,6 +193,7 @@ def run_forecasts(...):\n"
-            "                 area=area,\n"
-            "                 test=test,\n"
-            "                 horizon=horizon,\n"
-            "+                seed_parts=(metric, area)"
-            "  # Only used by Prophet\n"
-            "             )\n"
-            "             for (metric, area) in pairs\n"
-            "         )\n"
-            "@@ -240,6 +277,7 @@ def run_cross_validation"
-            "(...):\n"
-            "                 params=params,\n"
-            "                 metric=metric,\n"
-            "                 area=area,\n"
-            "+                seed_parts=(fold, metric, area)"
-            "  # Only used by Prophet\n"
-            "             )\n"
-            "@@ -259,6 +297,7 @@ def run_cross_validation"
-            "(...):\n"
-            "                 params=params,\n"
-            "                 metric=metric,\n"
-            "                 area=area,\n"
-            "+                seed_parts=(fold, metric, area)"
-            "  # Only used by Prophet\n"
-            "             )\n"
-            f"--- a/{secondary}\n"
-            f"+++ b/{secondary}\n"
-            "@@ -5,6 +5,7 @@\n"
-            " from typing import Literal\n"
-            " \n"
-            " import cmdstanpy\n"
-            "+import numpy as np\n"
-            " import pandas as pd\n"
-            " from prophet import Prophet\n"
-            " \n"
-            "@@ -153,7 +154,7 @@ def merge_regressor("
-            "data, regressor):\n"
-            "     return data\n"
-            " \n"
-            " \n"
-            "-def prophet(train, params, test=None, "
-            "horizon=None):\n"
-            "+def prophet(train, params, test=None, "
-            "horizon=None, seed=None):\n"
-            '     """Fit Prophet model and generate forecast.\n'
-            " \n"
-            "     Parameters\n"
-            "@@ -169,6 +170,9 @@ def prophet(...):\n"
-            "         Number of days to forecast, after the final "
-            "date in `train`.\n"
-            "+    seed : int | None\n"
-            "+        Random seed for Prophet prediction "
-            "interval reproducibility.\n"
-            "+\n"
-            "     Returns\n"
-            "     -------\n"
-            "     pd.DataFrame\n"
-            "@@ -179,6 +183,9 @@ def prophet(...):\n"
-            "     if (test is None) == (horizon is None):\n"
-            "         raise ValueError("
-            "\"Provide exactly one of 'test' or 'horizon'.\")\n"
-            " \n"
-            "+    if seed is not None:\n"
-            "+        np.random.seed(seed)\n"
-            "+\n"
-            "     # Disable \"start/done processing\" from prophet\n"
-        )
+        # Build a minimal placeholder diff from the first relevant file
+        if context.relevant_files and context.file_contents:
+            primary = context.relevant_files[0]
+            synthesized_diff = (
+                f"--- a/{primary}\n"
+                f"+++ b/{primary}\n"
+                "@@ -1,3 +1,4 @@\n"
+                "+# FixForge: auto-generated patch placeholder\n"
+            )
+            # Add context lines from actual file content
+            first_lines = context.file_contents.get(primary, "").split("\n")[:3]
+            for line in first_lines:
+                synthesized_diff += f" {line}\n"
+        else:
+            # Absolute last resort: empty diff that will be caught by validation
+            logger.warning(
+                "No LLM diff and no relevant files found — cannot generate fallback patch"
+            )
+            context.current_patch = ""
+            return AgentState.RUN_TESTS, context
 
     context.current_patch = synthesized_diff
     return AgentState.RUN_TESTS, context
