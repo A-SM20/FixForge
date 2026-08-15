@@ -74,8 +74,8 @@ export const RunDetailPage: React.FC<RunDetailPageProps> = ({ runId, onBack }) =
 
   if (!run) {
     return (
-      <div className="max-w-7xl mx-auto px-4 py-16 text-center text-slate-400 space-y-3">
-        <RefreshCw className="w-8 h-8 mx-auto animate-spin text-cyan-400" />
+      <div className="max-w-7xl mx-auto px-4 py-24 text-center text-neutral-400 space-y-3">
+        <RefreshCw className="w-8 h-8 mx-auto animate-spin text-[#D4FF00]" />
         <p className="text-sm font-medium">Connecting to live agent session...</p>
       </div>
     );
@@ -91,27 +91,27 @@ export const RunDetailPage: React.FC<RunDetailPageProps> = ({ runId, onBack }) =
   const issueNum = run.issue_url.split('/').pop();
 
   return (
-    <div className="max-w-7xl mx-auto px-4 py-8 space-y-8 animate-fadeIn">
+    <div className="max-w-7xl mx-auto px-4 sm:px-6 py-10 space-y-10 animate-fadeIn">
       {/* Top Header & Breadcrumb */}
-      <div className="flex flex-col md:flex-row md:items-center justify-between gap-4">
-        <div className="space-y-1">
+      <div className="flex flex-col md:flex-row md:items-center justify-between gap-6 border-b border-white/10 pb-6">
+        <div className="space-y-2">
           <button
             onClick={onBack}
-            className="inline-flex items-center gap-1.5 text-xs text-slate-400 hover:text-white mb-2 transition-colors"
+            className="inline-flex items-center gap-1.5 text-xs text-neutral-400 hover:text-white transition-colors"
           >
             <ArrowLeft className="w-4 h-4" />
-            <span>Back to Dashboard</span>
+            <span>Back to Runs Dashboard</span>
           </button>
 
           <div className="flex flex-wrap items-center gap-3">
-            <h1 className="text-2xl font-bold text-white tracking-tight flex items-center gap-2">
+            <h1 className="editorial-serif text-4xl sm:text-5xl font-normal text-white tracking-tight flex items-center gap-2">
               <span>{repoName}</span>
-              <span className="text-slate-500 font-mono font-normal">#{issueNum}</span>
+              <span className="text-neutral-500 font-mono font-normal text-2xl sm:text-3xl">#{issueNum}</span>
             </h1>
             <StatusBadge status={run.status} size="lg" />
           </div>
 
-          <p className="text-xs text-slate-400 font-mono">Run ID: {run.id}</p>
+          <p className="text-xs text-neutral-500 font-mono">Session ID: {run.id}</p>
         </div>
 
         {/* Links / PR CTA */}
@@ -120,7 +120,7 @@ export const RunDetailPage: React.FC<RunDetailPageProps> = ({ runId, onBack }) =
             href={run.issue_url}
             target="_blank"
             rel="noreferrer"
-            className="flex items-center gap-2 px-3.5 py-2 rounded-xl text-xs font-medium text-slate-300 bg-slate-900 border border-slate-800 hover:bg-slate-800 hover:text-white transition-colors"
+            className="flex items-center gap-2 px-4 py-2.5 rounded-full text-xs font-medium text-neutral-200 bg-white/5 border border-white/10 hover:bg-white/10 hover:text-white transition-all"
           >
             <ExternalLink className="w-3.5 h-3.5" />
             <span>View GitHub Issue</span>
@@ -131,53 +131,53 @@ export const RunDetailPage: React.FC<RunDetailPageProps> = ({ runId, onBack }) =
               href={run.pr_url}
               target="_blank"
               rel="noreferrer"
-              className="flex items-center gap-2 px-4 py-2 rounded-xl text-xs font-bold text-slate-950 bg-gradient-to-r from-emerald-400 to-cyan-400 hover:from-emerald-300 hover:to-cyan-300 shadow-lg shadow-emerald-500/20 active:scale-95 transition-all"
+              className="btn-lime flex items-center gap-2 px-5 py-2.5 rounded-full text-xs font-bold shadow-xl shadow-[#D4FF00]/20 active:scale-95 text-black"
             >
               <GitPullRequest className="w-4 h-4" />
-              <span>View Generated Pull Request</span>
+              <span>View Generated PR</span>
             </a>
           )}
         </div>
       </div>
 
       {/* Metrics Header Bar */}
-      <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
-        <div className="p-4 rounded-2xl bg-slate-900/60 border border-slate-800 backdrop-blur-md">
-          <div className="text-[11px] text-slate-500 uppercase tracking-wider font-semibold mb-1 flex items-center gap-1.5">
-            <DollarSign className="w-3.5 h-3.5 text-amber-400" />
+      <div className="grid grid-cols-2 sm:grid-cols-4 gap-4">
+        <div className="p-5 rounded-3xl bg-black/40 border border-white/10 backdrop-blur-xl">
+          <div className="text-[11px] text-neutral-400 uppercase tracking-wider font-semibold mb-1 flex items-center gap-1.5">
+            <DollarSign className="w-3.5 h-3.5 text-[#D4FF00]" />
             <span>Cumulative Cost</span>
           </div>
-          <div className="text-lg font-bold text-amber-300 font-mono">
+          <div className="text-xl font-extrabold text-[#D4FF00] font-mono">
             ${(run.total_cost || 0).toFixed(4)}
           </div>
         </div>
 
-        <div className="p-4 rounded-2xl bg-slate-900/60 border border-slate-800 backdrop-blur-md">
-          <div className="text-[11px] text-slate-500 uppercase tracking-wider font-semibold mb-1 flex items-center gap-1.5">
+        <div className="p-5 rounded-3xl bg-black/40 border border-white/10 backdrop-blur-xl">
+          <div className="text-[11px] text-neutral-400 uppercase tracking-wider font-semibold mb-1 flex items-center gap-1.5">
             <Clock className="w-3.5 h-3.5 text-cyan-400" />
             <span>Execution Latency</span>
           </div>
-          <div className="text-lg font-bold text-cyan-300 font-mono">
+          <div className="text-xl font-extrabold text-cyan-300 font-mono">
             {((run.total_latency || 0) / 1000).toFixed(1)}s
           </div>
         </div>
 
-        <div className="p-4 rounded-2xl bg-slate-900/60 border border-slate-800 backdrop-blur-md">
-          <div className="text-[11px] text-slate-500 uppercase tracking-wider font-semibold mb-1 flex items-center gap-1.5">
+        <div className="p-5 rounded-3xl bg-black/40 border border-white/10 backdrop-blur-xl">
+          <div className="text-[11px] text-neutral-400 uppercase tracking-wider font-semibold mb-1 flex items-center gap-1.5">
             <RefreshCw className="w-3.5 h-3.5 text-emerald-400" />
             <span>Iterations</span>
           </div>
-          <div className="text-lg font-bold text-emerald-400 font-mono">
-            {run.iteration_count} <span className="text-xs text-slate-500 font-normal">/ 5</span>
+          <div className="text-xl font-extrabold text-emerald-400 font-mono">
+            {run.iteration_count} <span className="text-xs text-neutral-500 font-normal">/ 5</span>
           </div>
         </div>
 
-        <div className="p-4 rounded-2xl bg-slate-900/60 border border-slate-800 backdrop-blur-md">
-          <div className="text-[11px] text-slate-500 uppercase tracking-wider font-semibold mb-1 flex items-center gap-1.5">
+        <div className="p-5 rounded-3xl bg-black/40 border border-white/10 backdrop-blur-xl">
+          <div className="text-[11px] text-neutral-400 uppercase tracking-wider font-semibold mb-1 flex items-center gap-1.5">
             <Cpu className="w-3.5 h-3.5 text-indigo-400" />
             <span>Sandbox Mode</span>
           </div>
-          <div className="text-lg font-bold text-indigo-300 font-mono">
+          <div className="text-xl font-extrabold text-indigo-300 font-mono">
             Docker (0-Net)
           </div>
         </div>
@@ -192,7 +192,7 @@ export const RunDetailPage: React.FC<RunDetailPageProps> = ({ runId, onBack }) =
 
       {/* Error Message if Present */}
       {run.error_message && (
-        <div className="p-4 rounded-2xl bg-rose-500/10 border border-rose-500/20 text-rose-300 text-xs flex items-start gap-3">
+        <div className="p-5 rounded-3xl bg-rose-500/10 border border-rose-500/20 text-rose-300 text-xs flex items-start gap-3 backdrop-blur-xl">
           <AlertTriangle className="w-5 h-5 text-rose-400 flex-shrink-0 mt-0.5" />
           <div className="space-y-1">
             <div className="font-semibold text-rose-200">Execution Escalation / Error:</div>
@@ -203,25 +203,25 @@ export const RunDetailPage: React.FC<RunDetailPageProps> = ({ runId, onBack }) =
 
       {/* Patches & Test Results Section */}
       <div className="space-y-4">
-        <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 border-b border-slate-800 pb-3">
+        <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 border-b border-white/10 pb-3">
           <div className="flex items-center gap-2">
-            <FileCode className="w-5 h-5 text-emerald-400" />
-            <h3 className="text-base font-semibold text-white">Generated Patches & Sandbox Results</h3>
+            <FileCode className="w-5 h-5 text-[#D4FF00]" />
+            <h3 className="text-lg font-semibold text-white">Generated Patches & Sandbox Results</h3>
           </div>
 
           {/* Iteration Tabs */}
           {patches.length > 1 && (
-            <div className="flex items-center gap-1.5 bg-slate-900 p-1 rounded-xl border border-slate-800">
+            <div className="flex items-center gap-1.5 bg-black/40 p-1 rounded-full border border-white/10">
               {patches.map((p) => {
                 const isSelected = activePatch?.id === p.id;
                 return (
                   <button
                     key={p.id}
                     onClick={() => setSelectedIteration(p.iteration_number)}
-                    className={`px-3 py-1 text-xs font-semibold rounded-lg font-mono transition-all ${
+                    className={`px-4 py-1 text-xs font-semibold rounded-full font-mono transition-all ${
                       isSelected
-                        ? 'bg-slate-800 text-white shadow-sm'
-                        : 'text-slate-400 hover:text-slate-200'
+                        ? 'bg-[#D4FF00] text-black shadow-md'
+                        : 'text-neutral-400 hover:text-white'
                     }`}
                   >
                     Iteration #{p.iteration_number}
@@ -241,21 +241,21 @@ export const RunDetailPage: React.FC<RunDetailPageProps> = ({ runId, onBack }) =
             />
 
             {/* Test Output Console */}
-            <div className="bg-slate-950 border border-slate-800 rounded-2xl overflow-hidden shadow-2xl">
-              <div className="flex items-center justify-between px-5 py-3 bg-slate-900/90 border-b border-slate-800">
-                <div className="flex items-center gap-2 text-xs font-medium text-slate-200 font-mono">
+            <div className="bg-black/60 border border-white/10 rounded-3xl overflow-hidden shadow-2xl backdrop-blur-xl">
+              <div className="flex items-center justify-between px-6 py-3.5 bg-white/5 border-b border-white/10">
+                <div className="flex items-center gap-2 text-xs font-medium text-neutral-200 font-mono">
                   <Terminal className="w-4 h-4 text-cyan-400" />
                   <span>Sandbox Test Suite Logs</span>
                 </div>
                 {activePatch.test_passed !== null && (
-                  <span className={`text-xs font-semibold px-2 py-0.5 rounded-full ${
+                  <span className={`text-xs font-semibold px-2.5 py-0.5 rounded-full ${
                     activePatch.test_passed ? 'bg-emerald-500/20 text-emerald-400' : 'bg-rose-500/20 text-rose-400'
                   }`}>
                     {activePatch.test_passed ? 'Tests Passed' : 'Tests Failed'}
                   </span>
                 )}
               </div>
-              <div className="p-4 font-mono text-xs text-slate-300 bg-slate-950 max-h-60 overflow-y-auto leading-relaxed whitespace-pre-wrap">
+              <div className="p-5 font-mono text-xs text-neutral-300 max-h-60 overflow-y-auto leading-relaxed whitespace-pre-wrap">
                 {run.status === 'running' && run.state === 'RUN_TESTS' ? (
                   <div className="flex items-center gap-2 text-cyan-400">
                     <RefreshCw className="w-4 h-4 animate-spin" />
@@ -268,10 +268,10 @@ export const RunDetailPage: React.FC<RunDetailPageProps> = ({ runId, onBack }) =
             </div>
           </div>
         ) : (
-          <div className="bg-slate-900/40 border border-slate-800/80 rounded-2xl p-12 text-center text-slate-400 space-y-2">
-            <Clock className="w-8 h-8 mx-auto text-slate-600 animate-pulse" />
-            <p className="text-sm font-medium text-slate-300">Awaiting patch generation</p>
-            <p className="text-xs text-slate-500 max-w-sm mx-auto">
+          <div className="bg-black/40 border border-white/10 rounded-3xl p-14 text-center text-neutral-400 space-y-2 backdrop-blur-xl">
+            <Clock className="w-8 h-8 mx-auto text-neutral-600 animate-pulse" />
+            <p className="text-base font-medium text-neutral-200">Awaiting patch generation</p>
+            <p className="text-xs text-neutral-500 max-w-sm mx-auto font-light">
               The agent is currently analyzing the issue and locating relevant source code.
             </p>
           </div>

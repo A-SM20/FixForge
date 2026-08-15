@@ -35,7 +35,7 @@ export function FixForgeApp() {
   };
 
   return (
-    <div className="min-h-screen bg-[#0b0f17] text-slate-100 flex flex-col selection:bg-cyan-500/30 selection:text-cyan-200">
+    <div className="min-h-screen bg-[#080c14] text-slate-100 flex flex-col selection:bg-[#D4FF00]/30 selection:text-[#D4FF00] relative font-sans">
       {/* Top Navigation */}
       <Navbar
         activeTab={activeTab}
@@ -46,7 +46,7 @@ export function FixForgeApp() {
         onOpenNewRun={() => setIsNewRunModalOpen(true)}
       />
 
-      {/* Main Content Area */}
+      {/* Main Content Area (Footer intentionally omitted per design requirement) */}
       <main className="flex-1">
         {selectedRunId ? (
           <RunDetailPage runId={selectedRunId} onBack={handleBackToDashboard} />
@@ -66,15 +66,7 @@ export function FixForgeApp() {
         )}
       </main>
 
-      {/* Footer */}
-      <footer className="border-t border-slate-800/80 bg-slate-950/60 py-6 px-4 text-center text-xs text-slate-500 font-mono">
-        <div className="max-w-7xl mx-auto flex flex-col sm:flex-row items-center justify-between gap-2">
-          <span>FixForge &mdash; Autonomous AI Bug-Fix & PR Engine</span>
-          <span className="text-slate-600">FastAPI &bull; Docker Sandbox &bull; React &bull; Tailwind &bull; TanStack Query</span>
-        </div>
-      </footer>
-
-      {/* New Run Modal */}
+      {/* New Run Trigger Modal */}
       <NewRunModal
         isOpen={isNewRunModalOpen}
         onClose={() => setIsNewRunModalOpen(false)}

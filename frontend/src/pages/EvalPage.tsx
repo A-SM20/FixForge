@@ -66,19 +66,17 @@ export const EvalPage: React.FC = () => {
   ];
 
   return (
-    <div className="max-w-7xl mx-auto px-4 py-8 space-y-10">
+    <div className="max-w-7xl mx-auto px-4 sm:px-6 py-10 space-y-10">
       {/* Benchmark Header */}
-      <div className="flex flex-col md:flex-row md:items-center justify-between gap-4">
+      <div className="flex flex-col md:flex-row md:items-end justify-between gap-6 border-b border-white/10 pb-6">
         <div>
-          <div className="flex items-center gap-2 mb-1">
-            <span className="text-xs font-mono uppercase font-semibold text-emerald-400 bg-emerald-500/10 px-2 py-0.5 rounded-full border border-emerald-500/20">
-              SWE Benchmark Harness
-            </span>
+          <div className="text-xs font-mono uppercase tracking-widest text-[#D4FF00] font-semibold mb-2">
+            SWE-Bench Evaluation Harness
           </div>
-          <h1 className="text-3xl font-extrabold text-white tracking-tight">
-            Autonomous Bug Resolution Evaluation
+          <h1 className="editorial-serif text-4xl sm:text-5xl font-normal text-white tracking-tight">
+            Autonomous Bug Resolution Benchmark
           </h1>
-          <p className="text-sm text-slate-400 mt-1 max-w-2xl">
+          <p className="text-sm text-neutral-400 font-light mt-1 max-w-2xl">
             Config-driven test harness executing the full agent FSM loop across 15 real-world GitHub issues from top Python repositories.
           </p>
         </div>
@@ -86,7 +84,7 @@ export const EvalPage: React.FC = () => {
         <button
           onClick={() => benchmarkMutation.mutate(undefined)}
           disabled={benchmarkMutation.isPending}
-          className="flex items-center justify-center gap-2 px-5 py-3 rounded-2xl font-bold text-sm text-slate-950 bg-gradient-to-r from-emerald-400 via-cyan-400 to-indigo-400 hover:from-emerald-300 hover:to-indigo-300 shadow-xl shadow-cyan-500/20 active:scale-95 disabled:opacity-50 transition-all"
+          className="btn-lime flex items-center justify-center gap-2 px-6 py-3 rounded-full font-bold text-xs shadow-xl shadow-[#D4FF00]/20 active:scale-95 disabled:opacity-50 transition-all text-black self-start md:self-auto"
         >
           {benchmarkMutation.isPending ? (
             <>
@@ -95,7 +93,7 @@ export const EvalPage: React.FC = () => {
             </>
           ) : (
             <>
-              <Play className="w-4 h-4 fill-slate-950" />
+              <Play className="w-4 h-4 fill-black" />
               <span>Run Full Evaluation Suite</span>
             </>
           )}
@@ -104,91 +102,91 @@ export const EvalPage: React.FC = () => {
 
       {/* Metrics Banner */}
       <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
-        <div className="p-6 rounded-3xl bg-slate-900/80 border border-slate-800 shadow-xl">
-          <div className="flex items-center justify-between text-slate-400 text-xs font-semibold uppercase tracking-wider mb-2">
+        <div className="p-6 rounded-3xl bg-black/40 border border-white/10 shadow-xl backdrop-blur-xl">
+          <div className="flex items-center justify-between text-neutral-400 text-xs font-semibold uppercase tracking-wider mb-2">
             <span>Overall Resolve Rate</span>
             <CheckCircle2 className="w-5 h-5 text-emerald-400" />
           </div>
-          <div className="text-4xl font-black text-emerald-400">
+          <div className="text-4xl font-extrabold text-emerald-400 font-sans">
             {(displayMetrics.resolve_rate * 100).toFixed(0)}%
           </div>
-          <p className="text-xs text-slate-500 mt-2">
+          <p className="text-xs text-neutral-500 mt-2">
             {displayMetrics.resolved_tasks} of {displayMetrics.total_tasks} verified fixes
           </p>
         </div>
 
-        <div className="p-6 rounded-3xl bg-slate-900/80 border border-slate-800 shadow-xl">
-          <div className="flex items-center justify-between text-slate-400 text-xs font-semibold uppercase tracking-wider mb-2">
+        <div className="p-6 rounded-3xl bg-black/40 border border-white/10 shadow-xl backdrop-blur-xl">
+          <div className="flex items-center justify-between text-neutral-400 text-xs font-semibold uppercase tracking-wider mb-2">
             <span>Avg Cost per Fix</span>
-            <DollarSign className="w-5 h-5 text-amber-400" />
+            <DollarSign className="w-5 h-5 text-[#D4FF00]" />
           </div>
-          <div className="text-4xl font-black text-amber-300 font-mono">
+          <div className="text-4xl font-extrabold text-[#D4FF00] font-mono">
             ${(displayMetrics.total_cost_usd / (displayMetrics.total_tasks || 1)).toFixed(3)}
           </div>
-          <p className="text-xs text-slate-500 mt-2">OpenAI GPT-4o function calling</p>
+          <p className="text-xs text-neutral-500 mt-2">OpenAI / Gemini function calling</p>
         </div>
 
-        <div className="p-6 rounded-3xl bg-slate-900/80 border border-slate-800 shadow-xl">
-          <div className="flex items-center justify-between text-slate-400 text-xs font-semibold uppercase tracking-wider mb-2">
+        <div className="p-6 rounded-3xl bg-black/40 border border-white/10 shadow-xl backdrop-blur-xl">
+          <div className="flex items-center justify-between text-neutral-400 text-xs font-semibold uppercase tracking-wider mb-2">
             <span>Avg Latency to Resolve</span>
             <Clock className="w-5 h-5 text-cyan-400" />
           </div>
-          <div className="text-4xl font-black text-cyan-300 font-mono">
+          <div className="text-4xl font-extrabold text-cyan-300 font-mono">
             {displayMetrics.avg_latency_s.toFixed(1)}s
           </div>
-          <p className="text-xs text-slate-500 mt-2">Includes sandbox spinup & tests</p>
+          <p className="text-xs text-neutral-500 mt-2">Includes sandbox spinup & tests</p>
         </div>
 
-        <div className="p-6 rounded-3xl bg-slate-900/80 border border-slate-800 shadow-xl">
-          <div className="flex items-center justify-between text-slate-400 text-xs font-semibold uppercase tracking-wider mb-2">
+        <div className="p-6 rounded-3xl bg-black/40 border border-white/10 shadow-xl backdrop-blur-xl">
+          <div className="flex items-center justify-between text-neutral-400 text-xs font-semibold uppercase tracking-wider mb-2">
             <span>Avg Iterations</span>
             <Layers className="w-5 h-5 text-indigo-400" />
           </div>
-          <div className="text-4xl font-black text-indigo-300 font-mono">
+          <div className="text-4xl font-extrabold text-indigo-300 font-mono">
             {displayMetrics.avg_iterations.toFixed(1)}
           </div>
-          <p className="text-xs text-slate-500 mt-2">Self-correction loop cycles</p>
+          <p className="text-xs text-neutral-500 mt-2">Self-correction loop cycles</p>
         </div>
       </div>
 
       {/* Visualizations Grid (Recharts) */}
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
         {/* Resolve Rate by Difficulty */}
-        <div className="p-6 rounded-3xl bg-slate-900/80 border border-slate-800 shadow-xl space-y-4">
+        <div className="p-6 rounded-3xl bg-black/40 border border-white/10 shadow-xl backdrop-blur-xl space-y-4">
           <div className="flex items-center justify-between">
             <h3 className="text-base font-semibold text-white">Resolve Rate by Difficulty</h3>
-            <span className="text-xs text-slate-500 font-mono">Pass / Total</span>
+            <span className="text-xs text-neutral-500 font-mono">Pass / Total</span>
           </div>
           <div className="h-64 w-full">
             <ResponsiveContainer width="100%" height="100%">
               <BarChart data={chartData} margin={{ top: 10, right: 10, left: -20, bottom: 0 }}>
-                <CartesianGrid strokeDasharray="3 3" stroke="#1e293b" />
+                <CartesianGrid strokeDasharray="3 3" stroke="#222736" />
                 <XAxis dataKey="name" stroke="#64748b" fontSize={12} />
                 <YAxis stroke="#64748b" fontSize={12} unit="%" />
                 <Tooltip
-                  contentStyle={{ backgroundColor: '#0f172a', borderColor: '#334155', borderRadius: '12px' }}
+                  contentStyle={{ backgroundColor: '#080c14', borderColor: '#222736', borderRadius: '16px' }}
                   formatter={(value: any) => [`${value}%`, 'Resolve Rate']}
                 />
-                <Bar dataKey="rate" fill="#10B981" radius={[8, 8, 0, 0]} />
+                <Bar dataKey="rate" fill="#D4FF00" radius={[8, 8, 0, 0]} />
               </BarChart>
             </ResponsiveContainer>
           </div>
         </div>
 
         {/* Cost vs Latency Breakdown */}
-        <div className="p-6 rounded-3xl bg-slate-900/80 border border-slate-800 shadow-xl space-y-4">
+        <div className="p-6 rounded-3xl bg-black/40 border border-white/10 shadow-xl backdrop-blur-xl space-y-4">
           <div className="flex items-center justify-between">
             <h3 className="text-base font-semibold text-white">Latency (Seconds) Across Tasks</h3>
-            <span className="text-xs text-slate-500 font-mono">Real execution time</span>
+            <span className="text-xs text-neutral-500 font-mono">Real execution time</span>
           </div>
           <div className="h-64 w-full">
             <ResponsiveContainer width="100%" height="100%">
               <BarChart data={costLatencyData} margin={{ top: 10, right: 10, left: -20, bottom: 0 }}>
-                <CartesianGrid strokeDasharray="3 3" stroke="#1e293b" />
+                <CartesianGrid strokeDasharray="3 3" stroke="#222736" />
                 <XAxis dataKey="task" stroke="#64748b" fontSize={10} />
                 <YAxis stroke="#64748b" fontSize={12} unit="s" />
                 <Tooltip
-                  contentStyle={{ backgroundColor: '#0f172a', borderColor: '#334155', borderRadius: '12px' }}
+                  contentStyle={{ backgroundColor: '#080c14', borderColor: '#222736', borderRadius: '16px' }}
                   formatter={(value: any) => [`${value}s`, 'Latency']}
                 />
                 <Bar dataKey="latency" fill="#06B6D4" radius={[8, 8, 0, 0]} />
@@ -199,24 +197,24 @@ export const EvalPage: React.FC = () => {
       </div>
 
       {/* Benchmark Task Dataset Table */}
-      <div className="bg-slate-950 border border-slate-800 rounded-3xl overflow-hidden shadow-2xl space-y-0">
-        <div className="px-6 py-4 bg-slate-900/90 border-b border-slate-800 flex items-center justify-between">
+      <div className="bg-black/40 border border-white/10 rounded-3xl overflow-hidden shadow-2xl backdrop-blur-xl space-y-0">
+        <div className="px-6 py-4 bg-white/5 border-b border-white/10 flex items-center justify-between">
           <div className="flex items-center gap-2">
-            <ShieldCheck className="w-5 h-5 text-cyan-400" />
+            <ShieldCheck className="w-5 h-5 text-[#D4FF00]" />
             <h3 className="text-base font-semibold text-white">Curated SWE Benchmark Dataset (15 Tasks)</h3>
           </div>
-          <span className="text-xs text-slate-500 font-mono">Config: backend/eval/issues.yaml</span>
+          <span className="text-xs text-neutral-500 font-mono">Config: backend/eval/issues.yaml</span>
         </div>
 
         {tasksLoading ? (
-          <div className="p-12 text-center text-slate-400 space-y-2">
-            <Loader2 className="w-6 h-6 mx-auto animate-spin text-cyan-400" />
+          <div className="p-12 text-center text-neutral-400 space-y-2">
+            <Loader2 className="w-6 h-6 mx-auto animate-spin text-[#D4FF00]" />
             <p className="text-xs">Loading benchmark task definitions...</p>
           </div>
         ) : (
           <div className="overflow-x-auto">
             <table className="w-full text-left text-xs">
-              <thead className="bg-slate-900/60 text-slate-400 border-b border-slate-800 uppercase tracking-wider font-semibold text-[10px]">
+              <thead className="bg-white/5 text-neutral-400 border-b border-white/10 uppercase tracking-wider font-semibold text-[10px]">
                 <tr>
                   <th className="px-6 py-3.5">Task ID</th>
                   <th className="px-6 py-3.5">Target Repository</th>
@@ -225,17 +223,17 @@ export const EvalPage: React.FC = () => {
                   <th className="px-6 py-3.5 text-right">Action</th>
                 </tr>
               </thead>
-              <tbody className="divide-y divide-slate-800/60 font-mono">
+              <tbody className="divide-y divide-white/5 font-mono">
                 {tasks.map((task) => (
-                  <tr key={task.id} className="hover:bg-slate-900/40 transition-colors">
-                    <td className="px-6 py-3.5 text-slate-200 font-semibold font-sans">
+                  <tr key={task.id} className="hover:bg-white/5 transition-colors">
+                    <td className="px-6 py-3.5 text-neutral-200 font-semibold font-sans">
                       {task.id}
                     </td>
                     <td className="px-6 py-3.5 text-cyan-400">
                       {task.repo}
                     </td>
                     <td className="px-6 py-3.5 font-sans">
-                      <span className={`px-2 py-0.5 rounded-full text-[10px] font-semibold uppercase ${
+                      <span className={`px-2.5 py-0.5 rounded-full text-[10px] font-semibold uppercase ${
                         task.difficulty === 'easy'
                           ? 'bg-emerald-500/10 text-emerald-400 border border-emerald-500/20'
                           : task.difficulty === 'hard'
@@ -245,14 +243,14 @@ export const EvalPage: React.FC = () => {
                         {task.difficulty}
                       </span>
                     </td>
-                    <td className="px-6 py-3.5 text-slate-400 font-sans line-clamp-1 max-w-md">
+                    <td className="px-6 py-3.5 text-neutral-400 font-sans line-clamp-1 max-w-md">
                       {task.issue_text_preview}
                     </td>
                     <td className="px-6 py-3.5 text-right">
                       <button
                         onClick={() => benchmarkMutation.mutate([task.id])}
                         disabled={benchmarkMutation.isPending}
-                        className="px-3 py-1 text-xs font-semibold rounded-lg bg-slate-900 hover:bg-slate-800 text-slate-300 hover:text-white border border-slate-700 transition-all font-sans"
+                        className="px-3.5 py-1 text-xs font-semibold rounded-full bg-white/5 hover:bg-white/10 text-neutral-300 hover:text-white border border-white/10 transition-all font-sans"
                       >
                         Run Task
                       </button>
