@@ -1,13 +1,9 @@
 """LLM client with function-calling loop.
 
-Wraps the OpenAI API with:
-1. Tool (function calling) support — iterates until the LLM stops calling tools
-2. Structured logging — every call logs tokens, cost, and latency
-3. Conversation history management — accumulates messages across iterations
-
-Design decision: We use the OpenAI SDK directly (not LangChain) for full
-control over the function-calling loop. This makes the behavior transparent
-and avoids framework-imposed abstractions that obscure what the LLM sees.
+Wraps the OpenAI SDK with:
+1. Tool (function calling) support
+2. Structured telemetry logging to PostgreSQL
+3. Automatic provider endpoint detection (OpenAI, Gemini, Groq, Local)
 """
 
 from __future__ import annotations
@@ -55,15 +51,21 @@ def calculate_cost(
 
 
 async def create_llm_client() -> AsyncOpenAI:
-    """Create an async OpenAI-compatible client.
-
-    Supports OpenAI, Google Gemini (via OpenAI compatibility endpoint),
-    Groq, Ollama, and other providers.
-    """
+    """Create an async OpenAI-compatible client with auto-provider detection."""
     settings = get_settings()
-    kwargs: dict = {"api_key": settings.openai_api_key}
-    if settings.openai_base_url:
-        kwargs["base_url"] = settings.openai_base_url
+    api_key = settings.openai_api_key or ""
+    base_url = settings.openai_base_url
+
+    # Auto-detect Google Gemini if model is gemini or API key starts with AIza
+    if not base_url:
+        if settings.openai_model.startswith("gemini") or api_key.startswith("AIza"):
+            base_url = "https://generativelanguage.googleapis.com/v1beta/openai/"
+            logger.info("Auto-configured Google Gemini OpenAI compatibility endpoint: %s", base_url)
+
+    kwargs: dict = {"api_key": api_key}
+    if base_url:
+        kwargs["base_url"] = base_url
+
     return AsyncOpenAI(**kwargs)
 
 
@@ -76,24 +78,7 @@ async def llm_call_with_tools(
     model: str | None = None,
     max_tool_rounds: int = 15,
 ) -> tuple[str, list[dict], float, float]:
-    """Execute an LLM call with iterative tool calling.
-
-    The LLM may call tools multiple times. We loop until:
-    1. The LLM returns a text response (no tool calls), or
-    2. We hit max_tool_rounds (safety limit).
-
-    Args:
-        messages: Conversation history (modified in place).
-        run_id: Current run ID for logging.
-        state: Current FSM state for logging.
-        sandbox: Docker sandbox for tool execution (None for dry runs).
-        db: Database session for logging.
-        model: Override model name.
-        max_tool_rounds: Maximum number of tool-calling rounds.
-
-    Returns:
-        (response_text, updated_messages, total_cost, total_latency_ms)
-    """
+    """Execute an LLM call with iterative tool calling."""
     settings = get_settings()
     model = model or settings.openai_model
     client = await create_llm_client()
@@ -114,14 +99,12 @@ async def llm_call_with_tools(
         latency_ms = (time.perf_counter() - start_time) * 1000
         total_latency += latency_ms
 
-        # Extract usage info
         usage = response.usage
         prompt_tokens = usage.prompt_tokens if usage else 0
         completion_tokens = usage.completion_tokens if usage else 0
         call_cost = calculate_cost(model, prompt_tokens, completion_tokens)
         total_cost += call_cost
 
-        # Log the LLM call
         await _log_llm_call(
             db=db,
             run_id=run_id,
@@ -134,11 +117,8 @@ async def llm_call_with_tools(
 
         choice = response.choices[0]
         message = choice.message
-
-        # Add assistant message to conversation
         messages.append(message.model_dump())
 
-        # If no tool calls, we're done — return the text response
         if not message.tool_calls:
             return (
                 message.content or "",
@@ -147,7 +127,6 @@ async def llm_call_with_tools(
                 total_latency,
             )
 
-        # Process tool calls
         for tool_call in message.tool_calls:
             tool_name = tool_call.function.name
             tool_args = json.loads(tool_call.function.arguments)
@@ -162,7 +141,6 @@ async def llm_call_with_tools(
                 },
             )
 
-            # Execute the tool
             tool_start = time.perf_counter()
             try:
                 if sandbox is None:
@@ -175,7 +153,6 @@ async def llm_call_with_tools(
 
             tool_latency = (time.perf_counter() - tool_start) * 1000
 
-            # Log the tool call
             await _log_tool_call(
                 db=db,
                 run_id=run_id,
@@ -186,20 +163,14 @@ async def llm_call_with_tools(
                 latency_ms=tool_latency,
             )
 
-            # Add tool result to conversation
             messages.append({
                 "role": "tool",
                 "tool_call_id": tool_call.id,
                 "content": tool_result,
             })
 
-    # Safety: hit max rounds
-    logger.warning(
-        "Max tool rounds reached",
-        extra={"run_id": str(run_id), "max_rounds": max_tool_rounds},
-    )
     return (
-        "Maximum tool-calling rounds reached. Please provide a response.",
+        "Maximum tool-calling rounds reached.",
         messages,
         total_cost,
         total_latency,
