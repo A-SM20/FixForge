@@ -1,7 +1,8 @@
 """GitHub service for interacting with the GitHub API.
 
 Supports PyGithub and direct HTTPX requests for high-resiliency
-public and authenticated issue fetching.
+public and authenticated issue fetching, repo tree listing, and
+raw file content retrieval.
 """
 
 from __future__ import annotations
@@ -79,6 +80,68 @@ async def fetch_issue(issue_url: str) -> dict:
     except Exception as e:
         logger.error("Failed to fetch issue from GitHub: %s", e)
         raise RuntimeError(f"Could not retrieve issue details from GitHub: {e}")
+
+
+async def fetch_repo_tree(
+    owner: str, repo: str, extensions: tuple[str, ...] = (".py",)
+) -> list[str]:
+    """Fetch the full file tree of a repo from GitHub API.
+
+    Returns a list of file paths (e.g. 'src/ambforecast/forecast.py')
+    filtered to the given extensions.
+    """
+    settings = get_settings()
+    headers = {
+        "User-Agent": "FixForge-Agent",
+        "Accept": "application/vnd.github.v3+json",
+    }
+    if settings.github_token:
+        headers["Authorization"] = f"token {settings.github_token}"
+
+    url = (
+        f"https://api.github.com/repos/{owner}/{repo}"
+        f"/git/trees/main?recursive=1"
+    )
+    try:
+        async with httpx.AsyncClient(timeout=15.0) as client:
+            resp = await client.get(url, headers=headers)
+            if resp.status_code == 200:
+                tree = resp.json().get("tree", [])
+                return [
+                    item["path"]
+                    for item in tree
+                    if item.get("type") == "blob"
+                    and any(item["path"].endswith(ext) for ext in extensions)
+                ]
+    except Exception as e:
+        logger.warning("Failed to fetch repo tree: %s", e)
+    return []
+
+
+async def fetch_file_content(
+    owner: str, repo: str, path: str, ref: str = "main"
+) -> str:
+    """Fetch raw file content from GitHub."""
+    settings = get_settings()
+    headers = {
+        "User-Agent": "FixForge-Agent",
+        "Accept": "application/vnd.github.v3.raw",
+    }
+    if settings.github_token:
+        headers["Authorization"] = f"token {settings.github_token}"
+
+    url = (
+        f"https://api.github.com/repos/{owner}/{repo}"
+        f"/contents/{path}?ref={ref}"
+    )
+    try:
+        async with httpx.AsyncClient(timeout=15.0) as client:
+            resp = await client.get(url, headers=headers)
+            if resp.status_code == 200:
+                return resp.text[:8000]
+    except Exception as e:
+        logger.warning("Failed to fetch %s: %s", path, e)
+    return ""
 
 
 async def create_pull_request(
