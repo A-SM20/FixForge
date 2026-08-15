@@ -1,11 +1,20 @@
 # FixForge 🛠️
 > **Autonomous Bug-Fixing & Pull Request Agent** powered by an explicit Finite State Machine, Sandboxed Docker Execution, and Least-Privilege Function Calling.
 
+[![Live Demo](https://img.shields.io/badge/Live%20Demo-fix--forge.vercel.app-D4FF00?logo=vercel&logoColor=black)](https://fix-forge.vercel.app/)
 [![CI](https://github.com/A-SM20/FixForge/actions/workflows/ci.yml/badge.svg)](https://github.com/A-SM20/FixForge/actions/workflows/ci.yml)
 [![FastAPI](https://img.shields.io/badge/Backend-FastAPI-009688.svg?logo=fastapi&logoColor=white)](https://fastapi.tiangolo.com)
 [![React](https://img.shields.io/badge/Frontend-React%2019%20%2B%20Vite-61DAFB.svg?logo=react&logoColor=black)](https://vitejs.dev)
 [![Tailwind CSS](https://img.shields.io/badge/Styling-Tailwind%20CSS%20v4-38B2AC.svg?logo=tailwind-css&logoColor=white)](https://tailwindcss.com)
 [![Docker](https://img.shields.io/badge/Sandbox-Docker--py-2496ED.svg?logo=docker&logoColor=white)](https://docker-py.readthedocs.io)
+
+---
+
+## 🌐 Live Deployments
+
+- **Frontend Web App (Vercel)**: [https://fix-forge.vercel.app/](https://fix-forge.vercel.app/)
+- **Backend API (Render)**: [https://fixforge-api.onrender.com](https://fixforge-api.onrender.com)
+- **API Documentation (Swagger)**: [https://fixforge-api.onrender.com/docs](https://fixforge-api.onrender.com/docs)
 
 ---
 
@@ -83,7 +92,7 @@ The evaluation harness aggregates:
 - Python 3.12+
 - Node.js 20+
 - Docker Desktop (for sandbox container execution)
-- OpenAI API Key & GitHub Personal Access Token
+- OpenAI API Key or free Google Gemini API Key & GitHub Personal Access Token
 
 ### 1. Local Development Stack (Docker Compose)
 ```bash
@@ -93,7 +102,7 @@ cd FixForge
 
 # Configure environment variables
 cp backend/.env.example backend/.env
-# Edit backend/.env with your OPENAI_API_KEY and GITHUB_TOKEN
+# Edit backend/.env with your OPENAI_API_KEY / GEMINI_KEY and GITHUB_TOKEN
 
 # Start the full stack (Postgres + Backend API + Frontend UI)
 docker compose up --build
@@ -122,24 +131,7 @@ npm install
 npm run dev
 ```
 
-Visit **`http://localhost:5173`** for the frontend UI.
-
----
-
-## 🧪 Testing & CI
-
-```bash
-# Run backend test suite (42 unit + integration tests)
-cd backend
-pytest tests/ -v --tb=short
-
-# Run backend linter
-ruff check app/ tests/
-
-# Run frontend build & type check
-cd ../frontend
-npm run build
-```
+Visit **`http://localhost:5173`** for local frontend or **`https://fix-forge.vercel.app/`** for live production.
 
 ---
 
@@ -155,4 +147,6 @@ npm run build
    - *Concurrency & Observability*: The agent loop is I/O intensive (LLM calls, Docker exec, GitHub API). Async I/O ensures the API server never blocks, while relational storage enables real-time joins between runs and log entries.
 
 ---
-@ananth
+
+## 📄 License
+MIT &copy; Ananth
