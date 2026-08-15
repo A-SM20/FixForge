@@ -26,28 +26,33 @@ interface RunDetailPageProps {
 export const RunDetailPage: React.FC<RunDetailPageProps> = ({ runId, onBack }) => {
   const [selectedIteration, setSelectedIteration] = useState<number | null>(null);
 
-  // TanStack Query polling fallback
-  const { data: run, refetch } = useQuery<RunDetail>({
+  // TanStack Query polling
+  const { data: run, refetch, error, isLoading, isError } = useQuery<RunDetail>({
     queryKey: ['run', runId],
     queryFn: () => fetchRunDetail(runId),
+    retry: 3,
     refetchInterval: (query) => {
       const current = query.state.data;
       if (current && (current.status === 'success' || current.status === 'failed' || current.status === 'error')) {
         return false; // Stop polling when finished
       }
-      return 2000; // Poll every 2s while running
+      return 1500; // Poll every 1.5s while active
     },
   });
 
-  // WebSocket for instantaneous live state updates
+  // WebSocket for instantaneous live state updates (with graceful fallback)
   useEffect(() => {
     let wsUrl: string;
     const customApiUrl = import.meta.env.VITE_API_URL;
 
     if (customApiUrl) {
-      const url = new URL(customApiUrl);
-      const wsProtocol = url.protocol === 'https:' ? 'wss:' : 'ws:';
-      wsUrl = `${wsProtocol}//${url.host}/ws/runs/${runId}`;
+      try {
+        const url = new URL(customApiUrl);
+        const wsProtocol = url.protocol === 'https:' ? 'wss:' : 'ws:';
+        wsUrl = `${wsProtocol}//${url.host}/ws/runs/${runId}`;
+      } catch {
+        return;
+      }
     } else {
       const protocol = window.location.protocol === 'https:' ? 'wss:' : 'ws:';
       wsUrl = `${protocol}//${window.location.host}/ws/runs/${runId}`;
@@ -72,11 +77,47 @@ export const RunDetailPage: React.FC<RunDetailPageProps> = ({ runId, onBack }) =
     };
   }, [runId, refetch]);
 
-  if (!run) {
+  if (isLoading || (!run && !isError)) {
     return (
-      <div className="max-w-7xl mx-auto px-4 py-24 text-center text-neutral-400 space-y-3">
-        <RefreshCw className="w-8 h-8 mx-auto animate-spin text-[#D4FF00]" />
-        <p className="text-sm font-medium">Connecting to live agent session...</p>
+      <div className="max-w-7xl mx-auto px-4 py-28 text-center text-neutral-400 space-y-4 animate-fadeIn">
+        <div className="w-12 h-12 rounded-full bg-[#D4FF00]/10 border border-[#D4FF00]/30 flex items-center justify-center mx-auto text-[#D4FF00]">
+          <RefreshCw className="w-6 h-6 animate-spin" />
+        </div>
+        <div className="space-y-1">
+          <p className="text-base font-semibold text-white">Connecting to live agent session...</p>
+          <p className="text-xs text-neutral-500 font-mono">Session: {runId}</p>
+        </div>
+      </div>
+    );
+  }
+
+  if (isError || !run) {
+    return (
+      <div className="max-w-xl mx-auto px-4 py-24 text-center space-y-5 animate-fadeIn">
+        <div className="w-14 h-14 rounded-2xl bg-rose-500/10 border border-rose-500/20 text-rose-400 flex items-center justify-center mx-auto">
+          <AlertTriangle className="w-7 h-7" />
+        </div>
+        <div className="space-y-1">
+          <h2 className="text-xl font-bold text-white">Could Not Load Agent Session</h2>
+          <p className="text-xs text-neutral-400 max-w-sm mx-auto">
+            {error instanceof Error ? error.message : 'The requested run record could not be found.'}
+          </p>
+        </div>
+        <div className="flex items-center justify-center gap-3 pt-2">
+          <button
+            onClick={onBack}
+            className="px-5 py-2.5 rounded-full text-xs font-semibold text-neutral-300 bg-white/5 hover:bg-white/10 border border-white/10 transition-all"
+          >
+            Back to Dashboard
+          </button>
+          <button
+            onClick={() => refetch()}
+            className="btn-lime px-5 py-2.5 rounded-full text-xs font-bold flex items-center gap-1.5 text-black"
+          >
+            <RefreshCw className="w-3.5 h-3.5" />
+            <span>Retry Connection</span>
+          </button>
+        </div>
       </div>
     );
   }

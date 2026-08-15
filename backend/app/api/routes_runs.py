@@ -2,7 +2,7 @@
 
 CRUD endpoints for the /api/runs resource. The POST endpoint
 creates a run record and enqueues the agent loop as a background task
-so the response returns immediately (202 Accepted).
+so the response returns immediately (201 Created).
 """
 
 import uuid
@@ -28,8 +28,8 @@ async def create_run(
 ) -> RunDetail:
     """Create a new agent run.
 
-    Creates the DB record and enqueues the agent state machine
-    as a FastAPI background task. Returns immediately with 201.
+    Creates the DB record, commits to Postgres, and enqueues the agent
+    state machine as a FastAPI background task.
     """
     run = Run(
         issue_url=str(body.issue_url),
@@ -38,7 +38,7 @@ async def create_run(
         state="READ_ISSUE",
     )
     db.add(run)
-    await db.flush()  # Assign the UUID before returning
+    await db.commit()
     await db.refresh(run)
 
     # Enqueue the agent loop as a background task
@@ -64,11 +64,9 @@ async def list_runs(
         query = query.where(Run.status == status)
         count_query = count_query.where(Run.status == status)
 
-    # Get total count
     total_result = await db.execute(count_query)
     total = total_result.scalar_one()
 
-    # Get page of results
     query = query.order_by(Run.created_at.desc())
     query = query.offset((page - 1) * page_size).limit(page_size)
     result = await db.execute(query)
@@ -119,15 +117,11 @@ async def delete_run(
         raise HTTPException(status_code=404, detail="Run not found")
 
     await db.delete(run)
+    await db.commit()
 
 
 def _run_to_detail(run: Run, patches_loaded: bool = True) -> RunDetail:
-    """Convert a Run ORM instance to a RunDetail response.
-
-    Handles the PatchSummary transformation (diff_preview is first 500 chars).
-    Use patches_loaded=False when patches haven't been eagerly loaded to
-    avoid triggering a lazy load in async context (MissingGreenlet).
-    """
+    """Convert a Run ORM instance to a RunDetail response."""
     patches = []
     if patches_loaded:
         try:
