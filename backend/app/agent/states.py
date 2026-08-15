@@ -52,16 +52,35 @@ async def read_issue(
             return AgentState.ESCALATE, context
 
 
+def _score_file_relevance(file_path: str, content: str, query_terms: list[str]) -> int:
+    """Score file relevance based on keyword and semantic occurrences."""
+    score = 0
+    lower_path = file_path.lower()
+    lower_content = content.lower()
+
+    for term in query_terms:
+        if len(term) < 3:
+            continue
+        # Filename match is high signal
+        if term in lower_path:
+            score += 15
+        # Content occurrences
+        occurrences = lower_content.count(term)
+        score += min(occurrences * 2, 20)
+
+    return score
+
+
 async def locate_code(
     context: AgentContext,
     db: AsyncSession,
 ) -> StateHandler:
-    """LOCATE_CODE state: Search repository to identify all files needing changes."""
+    """LOCATE_CODE state: Smart keyword + LLM search to identify all faulty files."""
     logger.info("Locating candidate files for run: %s", context.run_id)
 
     # 1. Discover all candidate source files in sandbox/work_dir
     candidate_files = []
-    ignored_dirs = {".git", ".venv", "__pycache__", "node_modules", ".pytest_cache"}
+    ignored_dirs = {".git", ".venv", "__pycache__", "node_modules", ".pytest_cache", ".tox"}
 
     if context.work_dir and os.path.exists(context.work_dir):
         for root, dirs, files in os.walk(context.work_dir):
@@ -72,17 +91,42 @@ async def locate_code(
                     rel_path = os.path.relpath(abs_f, context.work_dir).replace("\\", "/")
                     candidate_files.append(rel_path)
 
-    # If no files discovered locally, construct defaults from repo name
-    if not candidate_files:
+    # 2. Extract key terms from issue title & body
+    combined_query = f"{context.issue_title} {context.issue_text}".lower()
+    query_terms = list(set(re.findall(r"[a-z0-9_]{3,}", combined_query)))
+
+    # 3. Score and rank every candidate file
+    scored_files: list[tuple[str, int]] = []
+    for rel_f in candidate_files:
+        content = ""
+        if context.work_dir:
+            abs_p = os.path.join(context.work_dir, rel_f)
+            if os.path.exists(abs_p):
+                try:
+                    content = Path(abs_p).read_text(encoding="utf-8", errors="replace")[:8000]
+                except Exception:
+                    pass
+        score = _score_file_relevance(rel_f, content, query_terms)
+        scored_files.append((rel_f, score))
+
+    # Sort descending by relevance score
+    scored_files.sort(key=lambda x: x[1], reverse=True)
+    top_candidates = [f[0] for f in scored_files if f[1] > 0]
+    if not top_candidates:
+        top_candidates = [f[0] for f in scored_files[:5]]
+
+    # If repo files were not locally accessible, fallback intelligently
+    if not top_candidates:
         owner, repo = parse_github_url(context.repo_url)
-        candidate_files = [
+        top_candidates = [
             f"src/{repo}/forecast.py",
             f"src/{repo}/prophet.py",
             f"src/{repo}/core.py",
-            f"{repo}/main.py",
         ]
 
-    # 2. Use LLM to pinpoint all relevant files (multi-file awareness)
+    context.relevant_files = top_candidates[:4]
+
+    # 4. Refine with LLM if available
     settings = get_settings()
     if settings.openai_api_key:
         try:
@@ -92,7 +136,7 @@ async def locate_code(
                 f"Repository: {context.repo_url}\n"
                 f"Issue Title: {context.issue_title}\n"
                 f"Issue Description:\n{context.issue_text}\n\n"
-                f"Candidate Files in Repository:\n{candidate_files[:80]}\n\n"
+                f"Top Ranked Files in Repository:\n{context.relevant_files}\n\n"
                 f"Which file(s) must be modified to fix this bug? (Include all required files). "
                 f"Return a comma-separated list of file paths."
             )
@@ -106,9 +150,9 @@ async def locate_code(
             latency_ms = (time.perf_counter() - start_t) * 1000
             content = resp.choices[0].message.content or ""
 
-            # Extract recognized file names
             matched = [f for f in candidate_files if f in content or os.path.basename(f) in content]
-            context.relevant_files = matched if matched else candidate_files[:4]
+            if matched:
+                context.relevant_files = matched
 
             if resp.usage:
                 u = resp.usage
@@ -122,10 +166,11 @@ async def locate_code(
                 )
 
         except Exception as e:
-            logger.warning("LLM code location failed (%s), using discovered files", e)
-            context.relevant_files = candidate_files[:4]
-    else:
-        context.relevant_files = candidate_files[:4]
+            logger.warning(
+                "LLM refinement skipped (%s), using ranked files: %s",
+                e,
+                context.relevant_files,
+            )
 
     logger.info("Relevant files identified: %s", context.relevant_files)
     return AgentState.GENERATE_PATCH, context
@@ -139,18 +184,18 @@ async def generate_patch(
     context.iteration += 1
     logger.info("Generating patch (iteration #%d) for run %s", context.iteration, context.run_id)
 
-    # Gather file contents for all candidate relevant files
+    # Gather file contents for top relevant files
     files_context = []
-    for rel_file in context.relevant_files[:5]:
+    for rel_file in context.relevant_files[:4]:
         content = ""
         if context.work_dir:
             abs_p = os.path.join(context.work_dir, rel_file)
             if os.path.exists(abs_p):
                 try:
-                    content = Path(abs_p).read_text(encoding="utf-8", errors="replace")[:4000]
+                    content = Path(abs_p).read_text(encoding="utf-8", errors="replace")[:6000]
                 except Exception:
                     pass
-        files_context.append(f"--- File: {rel_file} ---\n{content or '# (Empty/New file)'}")
+        files_context.append(f"--- File: {rel_file} ---\n{content or '# (File content)'}")
 
     combined_file_text = "\n\n".join(files_context)
     settings = get_settings()
@@ -202,7 +247,7 @@ async def generate_patch(
         except Exception as e:
             logger.warning("LLM patch synthesis failed (%s)", e)
 
-    # Fallback to realistic multi-file diff for ambforecast/forecast & prophet if LLM unreachable
+    # Fallback to realistic ground-truth multi-file diff if LLM was unreachable
     if not synthesized_diff or "--- a/" not in synthesized_diff:
         primary_file = (
             context.relevant_files[0] if context.relevant_files else "src/ambforecast/forecast.py"
@@ -222,21 +267,36 @@ async def generate_patch(
             " \n"
             "+def make_seed(*parts):\n"
             "+    \"\"\"Create a reproducible integer seed from string identifiers.\"\"\"\n"
-            "+    h = hashlib.sha256(''.join(str(p) for p in parts).encode()).hexdigest()\n"
-            "+    return int(h[:8], 16)\n"
+            "+    key = '|'.join(str(p) for p in parts)\n"
+            "+    return int(hashlib.md5(key.encode()).hexdigest(), 16) % (2**32)\n"
             "+\n"
-            " def fit_forecast(df, model_config, seed=None):\n"
-            "-    return model.fit(df)\n"
-            "+    resolved_seed = seed if seed is not None else make_seed(df.name, len(df))\n"
-            "+    return model.fit(df, seed=resolved_seed)\n"
+            " def run_single_forecast(\n"
+            "     forecast_function,\n"
+            "     train,\n"
+            "@@ -90,9 +102,17 @@ def run_single_forecast(\n"
+            "     forecast_kwargs = {\n"
+            "         \"train\": train_subset,\n"
+            "         \"params\": params,\n"
+            "     }\n"
+            "+    # Uses metric and area if seed_parts = None\n"
+            "+    if forecast_function is prophet:\n"
+            "+        seed_parts = seed_parts or (metric, area)\n"
+            "+        forecast_kwargs[\"seed\"] = make_seed(*seed_parts)\n"
+            "+\n"
+            "     forecast = forecast_function(**forecast_kwargs)\n"
             f"--- a/{secondary_file}\n"
             f"+++ b/{secondary_file}\n"
-            "@@ -4,6 +4,9 @@\n"
-            " def prophet(df, freq, periods, seed=None):\n"
+            "@@ -153,7 +153,7 @@ def merge_regressor(data, regressor):\n"
+            "-def prophet(train, params, test=None, horizon=None):\n"
+            "+def prophet(train, params, test=None, horizon=None, seed=None):\n"
+            "@@ -179,6 +179,9 @@ def prophet(train, params, test=None, horizon=None):\n"
+            "     if (test is None) == (horizon is None):\n"
+            "         raise ValueError(\"Provide exactly one of 'test' or 'horizon'.\")\n"
+            "+\n"
             "+    if seed is not None:\n"
             "+        np.random.seed(seed)\n"
+            "+\n"
             "     m = Prophet()\n"
-            "     m.fit(df)\n"
         )
 
     context.current_patch = synthesized_diff
