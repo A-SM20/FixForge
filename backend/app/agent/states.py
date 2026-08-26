@@ -708,7 +708,10 @@ async def _detect_test_command(sandbox, work_dir: str | None = None) -> str:
     if exit_code == 0:
         exit_code_pytest, _ = await sandbox.exec("python -m pytest --version 2>/dev/null")
         if exit_code_pytest == 0:
-            return "python -m pytest tests/ -x -q --tb=short 2>&1 || python -m pytest -x -q --tb=short 2>&1"
+            return (
+                "python -m pytest tests/ -x -q --tb=short 2>&1 || "
+                "python -m pytest -x -q --tb=short 2>&1"
+            )
         return "python -m unittest discover -s tests -q 2>&1"
 
     # Node.js
@@ -769,15 +772,15 @@ async def run_tests(
         ).decode("ascii")
 
         # Split into chunks to avoid shell argument limits (~128KB)
-        CHUNK_SIZE = 65536
-        if len(b64_diff) <= CHUNK_SIZE:
+        chunk_size = 65536
+        if len(b64_diff) <= chunk_size:
             write_cmd = f"echo '{b64_diff}' | base64 -d > /tmp/fixforge_patch.diff"
             exit_code, output = await sandbox.exec(write_cmd)
         else:
             # Write in chunks for very large diffs
             await sandbox.exec("> /tmp/fixforge_b64.txt")
-            for i in range(0, len(b64_diff), CHUNK_SIZE):
-                chunk = b64_diff[i : i + CHUNK_SIZE]
+            for i in range(0, len(b64_diff), chunk_size):
+                chunk = b64_diff[i : i + chunk_size]
                 exit_code, output = await sandbox.exec(
                     f"echo '{chunk}' >> /tmp/fixforge_b64.txt"
                 )
@@ -886,6 +889,9 @@ async def run_tests(
                 "pip install -q -e . 2>/dev/null",
                 timeout=120,
             )
+
+        # Always ensure standard test tools are present
+        await sandbox.exec("pip install -q pytest pytest-cov mock 2>/dev/null")
 
         # Run the actual test suite
         exit_code, test_output = await sandbox.exec(test_cmd, timeout=180)

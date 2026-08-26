@@ -111,6 +111,18 @@ class DockerSandbox:
                     "Failed to start Docker container (%s), falling back to local mode", e
                 )
                 self.use_docker = False
+                
+                # Attempt to create a local virtualenv for isolation to avoid
+                # contaminating the host python environment (e.g. on Render)
+                try:
+                    import subprocess
+                    subprocess.run(
+                        ["python", "-m", "venv", ".venv_sandbox"],
+                        cwd=self.work_dir,
+                        check=False,
+                    )
+                except Exception as venv_err:
+                    logger.warning("Could not create local fallback venv: %s", venv_err)
 
     async def exec(
         self,
@@ -150,9 +162,16 @@ class DockerSandbox:
                 return -1, f"Execution error: {e}"
 
         # Local fallback execution inside work_dir
+        venv_cmd = cmd
+        if os.path.exists(os.path.join(self.work_dir, ".venv_sandbox")):
+            if os.name == "nt":
+                venv_cmd = f".venv_sandbox\\Scripts\\activate.bat && {cmd}"
+            else:
+                venv_cmd = f". .venv_sandbox/bin/activate && {cmd}"
+
         try:
             proc = await asyncio.create_subprocess_shell(
-                cmd,
+                venv_cmd,
                 cwd=self.work_dir,
                 stdout=asyncio.subprocess.PIPE,
                 stderr=asyncio.subprocess.PIPE,
