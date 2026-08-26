@@ -303,7 +303,7 @@ export const RunDetailPage: React.FC<RunDetailPageProps> = ({ runId, onBack }) =
                     <span>Executing test suite inside Docker sandbox...</span>
                   </div>
                 ) : (
-                  'Sandbox container test log: Test runner passed verification cleanly.'
+                  activePatch.test_result || 'No test output available.'
                 )}
               </div>
             </div>

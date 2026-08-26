@@ -2,6 +2,7 @@ export interface PatchSummary {
   id: string;
   iteration_number: number;
   test_passed: boolean | null;
+  test_result: string | null;
   diff_preview: string;
   created_at: string;
 }

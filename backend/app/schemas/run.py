@@ -29,6 +29,7 @@ class PatchSummary(BaseModel):
     id: uuid.UUID
     iteration_number: int
     test_passed: bool | None
+    test_result: str | None
     diff_preview: str = Field(
         ..., description="First 500 chars of the diff for preview"
     )

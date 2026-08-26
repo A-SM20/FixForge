@@ -130,6 +130,7 @@ def _run_to_detail(run: Run, patches_loaded: bool = True) -> RunDetail:
                     id=p.id,
                     iteration_number=p.iteration_number,
                     test_passed=p.test_passed,
+                    test_result=p.test_result,
                     diff_preview=p.diff[:500] if p.diff else "",
                     created_at=p.created_at,
                 )
