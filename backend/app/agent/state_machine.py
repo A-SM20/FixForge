@@ -25,6 +25,8 @@ from sqlalchemy import update
 if TYPE_CHECKING:
     from sqlalchemy.ext.asyncio import AsyncSession
 
+    from app.sandbox.docker_sandbox import DockerSandbox
+
 logger = logging.getLogger(__name__)
 
 
@@ -78,6 +80,9 @@ class AgentContext:
     # Repo working directory (set when sandbox starts)
     work_dir: str | None = None
     test_command: str | None = None
+
+    # Sandbox reference for executing commands in the cloned repo
+    sandbox: "DockerSandbox | None" = None
 
     # Conversation history for the LLM (persisted across iterations)
     messages: list[dict] = field(default_factory=list)

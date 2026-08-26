@@ -5,6 +5,8 @@ Why pydantic-settings: type-safe, validates on startup (fail fast),
 and provides a single source of truth for all configuration.
 """
 
+from functools import lru_cache
+
 from pydantic import field_validator
 from pydantic_settings import BaseSettings, SettingsConfigDict
 
@@ -53,6 +55,7 @@ class Settings(BaseSettings):
     cors_origins: list[str] = ["*"]  # Allow all origins for cloud deployment
 
 
+@lru_cache
 def get_settings() -> Settings:
-    """Factory function for settings; enables easy override in tests."""
+    """Factory function for settings; cached for performance."""
     return Settings()

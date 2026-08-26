@@ -52,6 +52,7 @@ async def execute_run(run_id: uuid.UUID, issue_url: str, repo_url: str) -> None:
         try:
             async with DockerSandbox(repo_url, settings) as sandbox:
                 context.work_dir = sandbox.work_dir
+                context.sandbox = sandbox
 
                 # Execute the state machine
                 result = await run_agent(context, db)
