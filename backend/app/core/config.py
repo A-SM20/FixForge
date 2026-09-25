@@ -28,6 +28,10 @@ class Settings(BaseSettings):
     def assemble_async_db_url(cls, v: str) -> str:
         """Convert standard postgres:// or postgresql:// to postgresql+asyncpg://."""
         if isinstance(v, str):
+            # asyncpg does not support the 'sslmode' query parameter (it uses 'ssl' instead).
+            # We strip it here to easily support Neon/Supabase out of the box.
+            v = v.replace("?sslmode=require", "")
+            
             if v.startswith("postgres://"):
                 return v.replace("postgres://", "postgresql+asyncpg://", 1)
             elif v.startswith("postgresql://") and not v.startswith("postgresql+asyncpg://"):
