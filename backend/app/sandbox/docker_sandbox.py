@@ -111,7 +111,7 @@ class DockerSandbox:
                     "Failed to start Docker container (%s), falling back to local mode", e
                 )
                 self.use_docker = False
-                
+
                 # Attempt to create a local virtualenv for isolation to avoid
                 # contaminating the host python environment (e.g. on Render)
                 try:
