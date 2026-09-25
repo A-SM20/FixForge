@@ -528,7 +528,7 @@ async def _generate_patch_agentic(
         # If the tool-calling agent used write_patch directly, check git diff
         if context.sandbox:
             exit_code, git_diff_output = await context.sandbox.exec(
-                "git diff 2>&1"
+                "git add -A 2>/dev/null; git diff --staged 2>&1"
             )
             if exit_code == 0 and git_diff_output.strip():
                 logger.info("Using git diff from sandbox (agent applied patch via tools)")
@@ -656,7 +656,9 @@ def _detect_test_command_local(work_dir: str) -> str | None:
         return any(os.path.exists(os.path.join(work_dir, f)) for f in filenames)
 
     # Python
-    if has("setup.py", "pyproject.toml", "requirements.txt", "setup.cfg"):
+    import glob
+    has_py_files = len(glob.glob(os.path.join(work_dir, "**/*.py"), recursive=True)) > 0
+    if has("setup.py", "pyproject.toml", "requirements.txt", "setup.cfg") or has_py_files:
         return (
             "python -m pytest tests/ -x -q --tb=short 2>&1 "
             "|| python -m pytest -x -q --tb=short 2>&1"
@@ -760,66 +762,77 @@ async def run_tests(
     # ---- Step 1: Apply the current patch in the sandbox ----
     patch_applied = False
     if context.current_patch and sandbox:
-        # Reset any previous patch application (clean state for retry)
-        if context.iteration > 1:
-            await sandbox.exec("git checkout -- . 2>/dev/null")
-            await sandbox.exec("git clean -fd 2>/dev/null")
+        # Check if working tree is already dirty — this means the agentic
+        # tool-calling loop already applied the patch via write_patch tool.
+        # In that case we must NOT reset or re-apply: just mark it as applied.
+        check_dirty_code, dirty_output = await sandbox.exec("git diff HEAD --quiet 2>&1; echo $?")
+        already_patched = dirty_output.strip().endswith("1") or bool(dirty_output.strip() == "1")
 
-        # Write the diff to a temp file using base64 encoding
-        # (avoids all shell escaping issues with printf/heredoc)
-        b64_diff = base64.b64encode(
-            context.current_patch.encode("utf-8")
-        ).decode("ascii")
+        # Also run git diff directly to check for changes
+        diff_code, diff_output = await sandbox.exec("git diff HEAD --stat 2>&1")
+        already_patched = already_patched or bool(diff_output.strip())
 
-        # Split into chunks to avoid shell argument limits (~128KB)
-        chunk_size = 65536
-        if len(b64_diff) <= chunk_size:
-            write_cmd = f"echo '{b64_diff}' | base64 -d > /tmp/fixforge_patch.diff"
-            exit_code, output = await sandbox.exec(write_cmd)
+        if already_patched and context.iteration == 1:
+            patch_applied = True
+            logger.info("Patch already applied in sandbox working tree (agentic write_patch) — skipping re-application")
         else:
-            # Write in chunks for very large diffs
-            await sandbox.exec("> /tmp/fixforge_b64.txt")
-            for i in range(0, len(b64_diff), chunk_size):
-                chunk = b64_diff[i : i + chunk_size]
-                exit_code, output = await sandbox.exec(
-                    f"echo '{chunk}' >> /tmp/fixforge_b64.txt"
-                )
-                if exit_code != 0:
-                    break
-            exit_code, output = await sandbox.exec(
-                "base64 -d /tmp/fixforge_b64.txt > /tmp/fixforge_patch.diff"
-            )
+            # Reset any previous patch application (clean state for retry)
+            if context.iteration > 1:
+                await sandbox.exec("git reset --hard 2>/dev/null")
+                await sandbox.exec("git clean -fd 2>/dev/null")
 
-        if exit_code == 0:
-            # Validate the patch first
-            exit_code, check_output = await sandbox.exec(
-                "git apply --check /tmp/fixforge_patch.diff 2>&1"
-            )
-            if exit_code == 0:
-                # Apply the patch
-                exit_code, apply_output = await sandbox.exec(
-                    "git apply /tmp/fixforge_patch.diff 2>&1"
+            # Write the patch to a platform-safe temp file using Python directly
+            # (avoids /tmp/ Linux assumption and base64 CLI differences on Windows)
+            import tempfile as _tempfile
+            patch_bytes = context.current_patch.encode("utf-8")
+            with _tempfile.NamedTemporaryFile(
+                mode="wb", suffix=".diff", delete=False
+            ) as tmp_f:
+                tmp_f.write(patch_bytes)
+                patch_file_path = tmp_f.name
+
+            try:
+                import subprocess as _subprocess
+                # Validate
+                check_result = _subprocess.run(
+                    ["git", "apply", "--check", patch_file_path],
+                    cwd=sandbox.work_dir,
+                    capture_output=True,
+                    text=True,
                 )
-                if exit_code == 0:
-                    patch_applied = True
-                    logger.info("Patch applied successfully")
-                else:
-                    logger.warning("git apply failed: %s", apply_output)
-                    context.test_output = (
-                        f"Patch application failed (git apply):\n{apply_output}\n\n"
-                        "The diff format or context lines do not match the "
-                        "actual file content. Please regenerate the patch with "
-                        "correct line numbers and sufficient context lines."
+                if check_result.returncode == 0:
+                    # Apply
+                    apply_result = _subprocess.run(
+                        ["git", "apply", patch_file_path],
+                        cwd=sandbox.work_dir,
+                        capture_output=True,
+                        text=True,
                     )
-            else:
-                logger.warning("git apply --check failed: %s", check_output)
-                context.test_output = (
-                    f"Patch validation failed (git apply --check):\n{check_output}\n\n"
-                    "The diff hunks do not match the file content. Ensure "
-                    "@@ line numbers are accurate and context lines match exactly."
-                )
-        else:
-            context.test_output = f"Failed to write patch file to sandbox: {output}"
+                    if apply_result.returncode == 0:
+                        patch_applied = True
+                        logger.info("Patch applied successfully via git apply")
+                    else:
+                        apply_output = apply_result.stdout + apply_result.stderr
+                        logger.warning("git apply failed: %s", apply_output)
+                        context.test_output = (
+                            f"Patch application failed (git apply):\n{apply_output}\n\n"
+                            "The diff format or context lines do not match the "
+                            "actual file content. Please regenerate the patch with "
+                            "correct line numbers and sufficient context lines."
+                        )
+                else:
+                    check_output = check_result.stdout + check_result.stderr
+                    logger.warning("git apply --check failed: %s", check_output)
+                    context.test_output = (
+                        f"Patch validation failed (git apply --check):\n{check_output}\n\n"
+                        "The diff hunks do not match the file content. Ensure "
+                        "@@ line numbers are accurate and context lines match exactly."
+                    )
+            finally:
+                try:
+                    os.unlink(patch_file_path)
+                except OSError:
+                    pass
 
         if not patch_applied:
             context.test_passed = False
@@ -983,6 +996,7 @@ async def open_pr(
                 body=pr_body,
                 diff=context.current_patch,
                 base=base_branch,
+                work_dir=context.work_dir,
             )
             context.pr_url = pr_url
             logger.info("Real PR created: %s", context.pr_url)

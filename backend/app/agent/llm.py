@@ -66,7 +66,32 @@ async def create_llm_client() -> AsyncOpenAI:
     if base_url:
         kwargs["base_url"] = base_url
 
+
     return AsyncOpenAI(**kwargs)
+
+
+def _clean_message(msg: dict) -> dict:
+    """Recursively remove None values from a message dict.
+
+    Gemini's OpenAI compatibility layer rejects messages that contain
+    null fields (e.g. function_call: null), returning 400 INVALID_ARGUMENT
+    'Value is not a struct: null'. Stripping Nones before sending fixes this.
+    """
+    cleaned: dict = {}
+    for k, v in msg.items():
+        if v is None:
+            continue
+        if isinstance(v, dict):
+            cleaned[k] = _clean_message(v)
+        elif isinstance(v, list):
+            cleaned[k] = [
+                _clean_message(i) if isinstance(i, dict) else i
+                for i in v
+                if i is not None
+            ]
+        else:
+            cleaned[k] = v
+    return cleaned
 
 
 async def llm_call_with_tools(
@@ -87,11 +112,14 @@ async def llm_call_with_tools(
     total_latency = 0.0
 
     for round_num in range(max_tool_rounds):
+        import asyncio
+        await asyncio.sleep(13)  # Throttle to respect Gemini free tier 5 RPM limit
+        
         start_time = time.perf_counter()
 
         response = await client.chat.completions.create(
             model=model,
-            messages=messages,
+            messages=[_clean_message(m) if isinstance(m, dict) else m for m in messages],
             tools=TOOL_DEFINITIONS,
             tool_choice="auto",
         )
@@ -117,7 +145,7 @@ async def llm_call_with_tools(
 
         choice = response.choices[0]
         message = choice.message
-        messages.append(message.model_dump())
+        messages.append(_clean_message(message.model_dump()))
 
         if not message.tool_calls:
             return (
@@ -132,11 +160,12 @@ async def llm_call_with_tools(
             tool_args = json.loads(tool_call.function.arguments)
 
             logger.info(
-                "Tool call",
+                "Tool call: %s",
+                tool_name,
                 extra={
                     "run_id": str(run_id),
                     "tool": tool_name,
-                    "args": tool_args,
+                    "tool_args": tool_args,
                     "round": round_num,
                 },
             )
@@ -166,7 +195,7 @@ async def llm_call_with_tools(
             messages.append({
                 "role": "tool",
                 "tool_call_id": tool_call.id,
-                "content": tool_result,
+                "content": str(tool_result) if tool_result is not None else "",
             })
 
     return (

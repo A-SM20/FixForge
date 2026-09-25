@@ -274,6 +274,7 @@ async def create_pull_request_via_api(
     body: str,
     diff: str,
     base: str,
+    work_dir: str | None = None,
 ) -> str:
     """Create a real pull request via the GitHub REST API.
 
@@ -323,7 +324,7 @@ async def create_pull_request_via_api(
 
         # 4. Parse the diff to extract changed files and apply changes
         tree_entries = await _diff_to_tree_entries(
-            client, api, headers, owner, repo, base, diff
+            client, api, headers, owner, repo, base, diff, work_dir=work_dir
         )
 
         if not tree_entries:
@@ -389,40 +390,62 @@ async def _diff_to_tree_entries(
     repo: str,
     base: str,
     diff: str,
+    work_dir: str | None = None,
 ) -> list[dict]:
     """Parse a unified diff and produce GitHub tree entries with new content.
 
-    For each file in the diff, fetch the original content, apply the
-    hunks line-by-line, and create a blob with the patched content.
+    For each file in the diff, reads final contents directly from work_dir.
+    Falls back to original hunk patching if work_dir is unavailable.
     """
+    import os
     entries: list[dict] = []
 
     # Split diff into per-file sections
-    file_diffs = re.split(r"(?=^--- a/)", diff, flags=re.MULTILINE)
+    file_diffs = re.split(r"(?=^--- (?:a/|/dev/null))", diff, flags=re.MULTILINE)
 
     for file_diff in file_diffs:
         if not file_diff.strip():
             continue
 
         # Extract file path
-        m_old = re.search(r"^--- a/(.+)$", file_diff, re.MULTILINE)
-        m_new = re.search(r"^\+\+\+ b/(.+)$", file_diff, re.MULTILINE)
+        m_old = re.search(r"^--- (a/.+|/dev/null)$", file_diff, re.MULTILINE)
+        m_new = re.search(r"^\+\+\+ (b/.+|/dev/null)$", file_diff, re.MULTILINE)
         if not m_old or not m_new:
             continue
 
-        file_path = m_new.group(1).strip()
+        file_path_old = m_old.group(1).strip()
+        file_path_new = m_new.group(1).strip()
 
-        # Fetch original file content
-        original = await fetch_file_content(owner, repo, file_path, ref=base)
-        if not original:
-            logger.warning("Could not fetch original content for %s, skipping", file_path)
+        if file_path_new == "/dev/null":
+            # File deletion
+            file_path = file_path_old[2:] if file_path_old.startswith("a/") else file_path_old
+            entries.append({
+                "path": file_path,
+                "mode": "100644",
+                "type": "blob",
+                "sha": None
+            })
             continue
 
-        # Apply the diff hunks to produce patched content
-        patched = _apply_diff_hunks(original, file_diff)
+        file_path = file_path_new[2:] if file_path_new.startswith("b/") else file_path_new
 
-        # Create blob via API
-        content_b64 = base64.b64encode(patched.encode("utf-8")).decode("ascii")
+        content_b64 = None
+        if work_dir:
+            full_path = os.path.join(work_dir, file_path)
+            if os.path.exists(full_path):
+                try:
+                    with open(full_path, "rb") as f:
+                        content_b64 = base64.b64encode(f.read()).decode("ascii")
+                except Exception as e:
+                    logger.warning("Failed to read %s from work_dir: %s", full_path, e)
+
+        if not content_b64:
+            # Fallback to manual diff patching
+            original = await fetch_file_content(owner, repo, file_path, ref=base)
+            if original is None:
+                original = ""
+            patched = _apply_diff_hunks(original, file_diff)
+            content_b64 = base64.b64encode(patched.encode("utf-8")).decode("ascii")
         resp = await client.post(
             f"{api}/git/blobs",
             headers=headers,

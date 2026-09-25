@@ -28,18 +28,21 @@ class Settings(BaseSettings):
     def assemble_async_db_url(cls, v: str) -> str:
         """Convert standard postgres:// or postgresql:// to postgresql+asyncpg://."""
         if isinstance(v, str):
+            if v.startswith("sqlite"):
+                return v
+
             # Parse URL and safely remove unsupported asyncpg query parameters
             # such as sslmode or channel_binding (commonly added by Neon/Supabase).
-            from urllib.parse import urlparse, parse_qs, urlencode, urlunparse
-            
+            from urllib.parse import parse_qs, urlencode, urlparse, urlunparse
+
             parsed = urlparse(v)
             query_params = parse_qs(parsed.query)
             query_params.pop('sslmode', None)
             query_params.pop('channel_binding', None)
-            
+
             new_query = urlencode(query_params, doseq=True)
             v = urlunparse(parsed._replace(query=new_query))
-            
+
             if v.startswith("postgres://"):
                 return v.replace("postgres://", "postgresql+asyncpg://", 1)
             elif v.startswith("postgresql://") and not v.startswith("postgresql+asyncpg://"):
